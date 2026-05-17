@@ -36,6 +36,31 @@ npm run dev
 npm run tauri:dev
 ```
 
+## Run (OpenWakeWord Local Server)
+
+Wake-word detection can run locally from `local-voice/`:
+
+```powershell
+cd D:\mistskiv2\local-voice
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python wakeword-server.py
+```
+
+If `D:\mistskiv2\local-voice\models\Misty.onnx` exists, it is loaded automatically.
+
+The app expects:
+
+- `http://127.0.0.1:8765`
+- `ws://127.0.0.1:8765/wake`
+
+Optional explicit model:
+
+```powershell
+python wakeword-server.py --model .\models\Misty.onnx
+```
+
 ## Build
 
 ```bash
