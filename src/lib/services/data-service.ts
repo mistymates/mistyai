@@ -164,6 +164,13 @@ export const dataService = {
     });
   },
 
+  async updateCalendarEvent(id: string, updates: Partial<CalendarEvent>) {
+    return apiRequest<CalendarEvent>(dataPathWithId("calendar_events", id), {
+      method: "PATCH",
+      body: JSON.stringify(updates),
+    });
+  },
+
   async deleteCalendarEvent(id: string) {
     return apiRequest<CalendarEvent>(dataPathWithId("calendar_events", id), {
       method: "DELETE",

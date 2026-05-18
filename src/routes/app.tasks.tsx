@@ -1,9 +1,14 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import { CheckCircle2, Circle, Plus, Trash2 } from "lucide-react";
+import { CheckCircle2, Circle, Pencil, Plus, Trash2 } from "lucide-react";
 import { useTasks } from "@/lib/hooks/use-data";
-import { useToggleTask, useCreateTask, useDeleteTask } from "@/lib/hooks/use-mutations";
+import {
+  useToggleTask,
+  useCreateTask,
+  useDeleteTask,
+  useUpdateTask,
+} from "@/lib/hooks/use-mutations";
 import type { Task } from "@/lib/types/database";
 import { CreateItemDialog } from "@/components/CreateItemDialog";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
@@ -20,13 +25,16 @@ function TasksPage() {
   const { data: tasks = [], isLoading } = useTasks();
   const { mutate: toggleTask } = useToggleTask();
   const createTask = useCreateTask();
+  const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [newTask, setNewTask] = useState<{
     title: string;
     priority: Task["priority"];
     dueDate: string;
-  }>({ title: "", priority: "medium", dueDate: "" });
+    dueTime: string;
+  }>({ title: "", priority: "medium", dueDate: "", dueTime: "" });
 
   const groups = ["Today", "Tomorrow", "This week"];
   const groupedTasks = groups.map((group) => ({
@@ -35,29 +43,72 @@ function TasksPage() {
   }));
   const hasVisibleTasks = groupedTasks.some(({ list }) => list.length > 0);
 
-  const resetTaskForm = () => setNewTask({ title: "", priority: "medium", dueDate: "" });
+  const resetTaskForm = () =>
+    setNewTask({ title: "", priority: "medium", dueDate: "", dueTime: "" });
 
   const handleTaskDialogOpenChange = (open: boolean) => {
     setIsDialogOpen(open);
-    if (!open) resetTaskForm();
+    if (!open) {
+      setEditingTaskId(null);
+      resetTaskForm();
+    }
+  };
+
+  const openEditTaskDialog = (task: Task) => {
+    const due = task.due_date ? new Date(task.due_date) : null;
+    const dueDate =
+      due && !Number.isNaN(due.getTime())
+        ? `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, "0")}-${String(
+            due.getDate(),
+          ).padStart(2, "0")}`
+        : "";
+    const dueTime =
+      due && !Number.isNaN(due.getTime())
+        ? `${String(due.getHours()).padStart(2, "0")}:${String(due.getMinutes()).padStart(2, "0")}`
+        : "";
+
+    setEditingTaskId(task.id);
+    setNewTask({
+      title: task.title,
+      priority: task.priority,
+      dueDate,
+      dueTime,
+    });
+    setIsDialogOpen(true);
   };
 
   const handleCreateTask = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const title = newTask.title.trim();
     if (!title) return;
+    const hasDueDate = Boolean(newTask.dueDate);
+    const dueDateTime = hasDueDate
+      ? new Date(`${newTask.dueDate}T${newTask.dueTime || "00:00"}:00`)
+      : null;
 
     try {
-      await createTask.mutateAsync({
-        title,
-        done: false,
-        priority: newTask.priority,
-        due_date: newTask.dueDate ? new Date(`${newTask.dueDate}T00:00:00`).toISOString() : null,
-      });
-      toast.success("Task created");
+      if (editingTaskId) {
+        await updateTask.mutateAsync({
+          id: editingTaskId,
+          updates: {
+            title,
+            priority: newTask.priority,
+            due_date: dueDateTime ? dueDateTime.toISOString() : null,
+          },
+        });
+        toast.success("Task updated");
+      } else {
+        await createTask.mutateAsync({
+          title,
+          done: false,
+          priority: newTask.priority,
+          due_date: dueDateTime ? dueDateTime.toISOString() : null,
+        });
+        toast.success("Task created");
+      }
       handleTaskDialogOpenChange(false);
     } catch {
-      toast.error("Failed to create task");
+      toast.error(editingTaskId ? "Failed to update task" : "Failed to create task");
     }
   };
 
@@ -90,10 +141,10 @@ function TasksPage() {
               <Plus className="h-3.5 w-3.5" /> New task
             </button>
           }
-          title="New Task"
-          submitLabel="Save Task"
+          title={editingTaskId ? "Edit Task" : "New Task"}
+          submitLabel={editingTaskId ? "Save Changes" : "Save Task"}
           submittingLabel="Saving..."
-          isSubmitting={createTask.isPending}
+          isSubmitting={createTask.isPending || updateTask.isPending}
           submitDisabled={!newTask.title.trim()}
           onSubmit={handleCreateTask}
         >
@@ -139,20 +190,37 @@ function TasksPage() {
               ))}
             </ToggleGroup>
           </div>
-          <div className="space-y-2">
-            <label
-              htmlFor="task-due-date"
-              className="text-xs font-medium text-muted-foreground uppercase tracking-wider"
-            >
-              Due Date
-            </label>
-            <Input
-              id="task-due-date"
-              type="date"
-              value={newTask.dueDate}
-              onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })}
-              className="bg-white/5 border-white/10 focus-visible:ring-[color:var(--violet)]"
-            />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <label
+                htmlFor="task-due-date"
+                className="text-xs font-medium text-muted-foreground uppercase tracking-wider"
+              >
+                Date
+              </label>
+              <Input
+                id="task-due-date"
+                type="date"
+                value={newTask.dueDate}
+                onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })}
+                className="bg-white/5 border-white/10 focus-visible:ring-[color:var(--violet)]"
+              />
+            </div>
+            <div className="space-y-2">
+              <label
+                htmlFor="task-due-time"
+                className="text-xs font-medium text-muted-foreground uppercase tracking-wider"
+              >
+                Time
+              </label>
+              <Input
+                id="task-due-time"
+                type="time"
+                value={newTask.dueTime}
+                onChange={(e) => setNewTask({ ...newTask, dueTime: e.target.value })}
+                className="bg-white/5 border-white/10 focus-visible:ring-[color:var(--violet)]"
+              />
+            </div>
           </div>
         </CreateItemDialog>
       </header>
@@ -216,6 +284,18 @@ function TasksPage() {
                   >
                     {t.priority}
                   </span>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      openEditTaskDialog(t);
+                    }}
+                    className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted-foreground opacity-0 transition hover:bg-white/10 hover:text-foreground group-hover:opacity-100 focus:opacity-100"
+                    aria-label={`Edit task ${t.title}`}
+                    title="Edit task"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
                   <DeleteConfirmDialog
                     title="Delete task?"
                     description={`Delete "${t.title}"? This cannot be undone.`}

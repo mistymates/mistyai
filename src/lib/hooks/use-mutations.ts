@@ -64,6 +64,20 @@ export const useDeleteTask = () => {
   });
 };
 
+export const useUpdateTask = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<Task> }) =>
+      dataService.updateTask(id, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["calendar-items"] });
+      queryClient.invalidateQueries({ queryKey: ["agenda"] });
+    },
+  });
+};
+
 export const useToggleHabit = () => {
   const queryClient = useQueryClient();
 
@@ -175,6 +189,20 @@ export const useDeleteCalendarEvent = () => {
 
   return useMutation({
     mutationFn: (id: string) => dataService.deleteCalendarEvent(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+      queryClient.invalidateQueries({ queryKey: ["calendar-items"] });
+      queryClient.invalidateQueries({ queryKey: ["agenda"] });
+    },
+  });
+};
+
+export const useUpdateCalendarEvent = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<CalendarEvent> }) =>
+      dataService.updateCalendarEvent(id, updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
       queryClient.invalidateQueries({ queryKey: ["calendar-items"] });

@@ -77,6 +77,7 @@ type AgendaItem = {
   end_time: string | null;
   type: string;
 };
+type AgendaViewItem = AgendaItem & { dayLabel: "Today" | "Tomorrow" };
 type MoodDay = { day: string; date: string; mood: number };
 type WeatherSummary = { temperature?: number; city?: string };
 
@@ -551,6 +552,34 @@ function WidgetBody({
     const seconds = totalSeconds % 60;
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
+  const toLocalDateKey = (date: Date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+      date.getDate(),
+    ).padStart(2, "0")}`;
+
+  const agendaView = useMemo(() => {
+    const now = new Date();
+    const todayKey = toLocalDateKey(now);
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowKey = toLocalDateKey(tomorrow);
+
+    const filtered: AgendaViewItem[] = [];
+    for (const item of agenda) {
+      const date = new Date(item.start_time);
+      if (Number.isNaN(date.getTime())) continue;
+      const key = toLocalDateKey(date);
+      if (key === todayKey) filtered.push({ ...item, dayLabel: "Today" });
+      if (key === tomorrowKey) filtered.push({ ...item, dayLabel: "Tomorrow" });
+    }
+
+    return filtered.sort(
+      (a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime(),
+    );
+  }, [agenda]);
+  const todayCount = agendaView.filter((item) => item.dayLabel === "Today").length;
+  const tomorrowCount = agendaView.filter((item) => item.dayLabel === "Tomorrow").length;
+
   switch (id) {
     case "agenda":
       return (
@@ -558,15 +587,18 @@ function WidgetBody({
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="font-display text-lg font-semibold">Today's agenda</h2>
-              <p className="text-xs text-muted-foreground">{agenda.length} things on your mind</p>
+              <p className="text-xs text-muted-foreground">
+                {todayCount} today
+                {tomorrowCount > 0 ? ` · ${tomorrowCount} tomorrow` : ""}
+              </p>
             </div>
             <Plus className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           </div>
           <div className="space-y-2.5">
-            {agenda.length === 0 && (
+            {agendaView.length === 0 && (
               <div className="text-xs text-muted-foreground italic py-4">No events scheduled.</div>
             )}
-            {agenda.map((a) => {
+            {agendaView.map((a) => {
               const date = new Date(a.start_time);
               const isValidDate = !isNaN(date.getTime());
               const time = isValidDate
@@ -595,6 +627,11 @@ function WidgetBody({
                     }`}
                   />
                   <div className="flex-1 text-sm">{a.title}</div>
+                  {a.dayLabel === "Tomorrow" && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-muted-foreground uppercase tracking-wider">
+                      Tomorrow
+                    </span>
+                  )}
                   <span className="text-[10px] text-muted-foreground uppercase tracking-wider opacity-0 group-hover:opacity-100 transition">
                     {a.type}
                   </span>

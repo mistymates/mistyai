@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import {
   Calendar as CalendarIcon,
@@ -8,6 +9,7 @@ import {
   Clock,
   Loader2,
   LogOut,
+  Pencil,
   Plus,
   RotateCcw,
   Trash2,
@@ -15,7 +17,11 @@ import {
 import { useGoogleLogin } from "@react-oauth/google";
 import { toast } from "sonner";
 import { useCalendarItems, type CalendarItem } from "@/lib/hooks/use-data";
-import { useCreateCalendarEvent, useDeleteCalendarEvent } from "@/lib/hooks/use-mutations";
+import {
+  useCreateCalendarEvent,
+  useDeleteCalendarEvent,
+  useUpdateCalendarEvent,
+} from "@/lib/hooks/use-mutations";
 import { useGoogleAuthStore } from "@/lib/stores/google-auth-store";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 import { DropdownSelect } from "@/components/DropdownSelect";
@@ -125,6 +131,7 @@ function CalendarPage() {
   const [viewDate, setViewDate] = useState(() => startOfMonth(today));
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [eventForm, setEventForm] = useState({ title: "", time: "", type: "event" });
   const token = useGoogleAuthStore((state) => state.token);
   const expiresAt = useGoogleAuthStore((state) => state.expiresAt);
@@ -132,6 +139,7 @@ function CalendarPage() {
   const logout = useGoogleAuthStore((state) => state.logout);
   const createCalendarEvent = useCreateCalendarEvent();
   const deleteCalendarEvent = useDeleteCalendarEvent();
+  const updateCalendarEvent = useUpdateCalendarEvent();
   const isGoogleConnected = Boolean(token && expiresAt && expiresAt > Date.now());
   const needsGoogleReconnect = Boolean(token && !isGoogleConnected);
 
@@ -185,7 +193,24 @@ function CalendarPage() {
 
   const openCreateDialog = (dateKey: string) => {
     setSelectedDate(dateKey);
+    setEditingEventId(null);
     setEventForm({ title: "", time: "", type: "event" });
+    setIsDialogOpen(true);
+  };
+
+  const getLocalRowId = (itemId: string) =>
+    itemId.startsWith("local:") ? itemId.slice("local:".length) : itemId;
+
+  const openEditDialog = (item: CalendarItem) => {
+    if (item.source !== "local") return;
+    const start = new Date(item.start);
+    const time =
+      item.allDay || Number.isNaN(start.getTime())
+        ? ""
+        : `${String(start.getHours()).padStart(2, "0")}:${String(start.getMinutes()).padStart(2, "0")}`;
+    setSelectedDate(item.dateKey || toDateKey(start) || todayKey);
+    setEditingEventId(getLocalRowId(item.id));
+    setEventForm({ title: item.title, time, type: item.type || "event" });
     setIsDialogOpen(true);
   };
 
@@ -199,23 +224,37 @@ function CalendarPage() {
       : new Date(`${selectedDate}T00:00:00`);
 
     try {
-      await createCalendarEvent.mutateAsync({
-        title,
-        start_time: start.toISOString(),
-        end_time: null,
-        type: eventForm.type,
-      });
-      toast.success("Calendar event added");
+      if (editingEventId) {
+        await updateCalendarEvent.mutateAsync({
+          id: editingEventId,
+          updates: {
+            title,
+            start_time: start.toISOString(),
+            end_time: null,
+            type: eventForm.type,
+          },
+        });
+        toast.success("Calendar event updated");
+      } else {
+        await createCalendarEvent.mutateAsync({
+          title,
+          start_time: start.toISOString(),
+          end_time: null,
+          type: eventForm.type,
+        });
+        toast.success("Calendar event added");
+      }
       setIsDialogOpen(false);
+      setEditingEventId(null);
       setEventForm({ title: "", time: "", type: "event" });
     } catch {
-      toast.error("Failed to add calendar event");
+      toast.error(editingEventId ? "Failed to update calendar event" : "Failed to add calendar event");
     }
   };
 
   const handleDeleteCalendarEvent = async (item: CalendarItem) => {
     try {
-      await deleteCalendarEvent.mutateAsync(item.id);
+      await deleteCalendarEvent.mutateAsync(getLocalRowId(item.id));
       toast.success("Calendar event deleted");
     } catch {
       toast.error("Failed to delete calendar event");
@@ -427,7 +466,9 @@ function CalendarPage() {
               items={selectedItems}
               emptyText="Nothing scheduled for this date."
               onDeleteLocalEvent={handleDeleteCalendarEvent}
+              onEditLocalEvent={openEditDialog}
               isDeleting={deleteCalendarEvent.isPending}
+              alwaysShowActions
             />
           </section>
 
@@ -454,7 +495,9 @@ function CalendarPage() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="bg-black/90 border-white/10 backdrop-blur-xl sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle className="font-display text-xl">Add calendar event</DialogTitle>
+            <DialogTitle className="font-display text-xl">
+              {editingEventId ? "Edit calendar event" : "Add calendar event"}
+            </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleCreateEvent} className="space-y-4 pt-3">
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm">
@@ -513,17 +556,28 @@ function CalendarPage() {
               <Button
                 type="button"
                 variant="ghost"
-                onClick={() => setIsDialogOpen(false)}
+                onClick={() => {
+                  setIsDialogOpen(false);
+                  setEditingEventId(null);
+                }}
                 className="hover:bg-white/5"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                disabled={createCalendarEvent.isPending || !eventForm.title.trim()}
+                disabled={
+                  createCalendarEvent.isPending ||
+                  updateCalendarEvent.isPending ||
+                  !eventForm.title.trim()
+                }
                 className="bg-gradient-to-r from-[color:var(--violet)] to-[color:var(--cyan)] text-black font-medium"
               >
-                {createCalendarEvent.isPending ? "Saving..." : "Save event"}
+                {createCalendarEvent.isPending || updateCalendarEvent.isPending
+                  ? "Saving..."
+                  : editingEventId
+                    ? "Save changes"
+                    : "Save event"}
               </Button>
             </div>
           </form>
@@ -537,14 +591,18 @@ function CalendarList({
   items,
   emptyText,
   onDeleteLocalEvent,
+  onEditLocalEvent,
   isDeleting = false,
   showDate = false,
+  alwaysShowActions = false,
 }: {
   items: CalendarItem[];
   emptyText: string;
   onDeleteLocalEvent?: (item: CalendarItem) => void;
+  onEditLocalEvent?: (item: CalendarItem) => void;
   isDeleting?: boolean;
   showDate?: boolean;
+  alwaysShowActions?: boolean;
 }) {
   if (items.length === 0) {
     return <div className="py-8 text-center text-xs italic text-muted-foreground">{emptyText}</div>;
@@ -585,25 +643,60 @@ function CalendarList({
               )}
             </div>
           </div>
-          {item.source === "local" && onDeleteLocalEvent && (
-            <DeleteConfirmDialog
-              title="Delete calendar event?"
-              description={`Delete "${item.title}"? This cannot be undone.`}
-              isPending={isDeleting}
-              onConfirm={() => onDeleteLocalEvent(item)}
-              trigger={
+          {item.source === "local" && (
+            <>
+              {onEditLocalEvent && (
                 <button
                   type="button"
-                  onClick={(event) => event.stopPropagation()}
-                  disabled={isDeleting}
-                  className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted-foreground opacity-0 transition hover:bg-[color:var(--rose)]/10 hover:text-[color:var(--rose)] group-hover:opacity-100 focus:opacity-100 disabled:opacity-50"
-                  aria-label={`Delete calendar event ${item.title}`}
-                  title="Delete event"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onEditLocalEvent(item);
+                  }}
+                  className={`grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted-foreground transition hover:bg-[color:var(--rose)]/10 hover:text-[color:var(--rose)] focus:opacity-100 disabled:opacity-50 ${
+                    alwaysShowActions ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                  }`}
+                  aria-label={`Edit calendar event ${item.title}`}
+                  title="Edit event"
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  <Pencil className="h-3.5 w-3.5" />
                 </button>
-              }
-            />
+              )}
+              {onDeleteLocalEvent && (
+                <DeleteConfirmDialog
+                  title="Delete calendar event?"
+                  description={`Delete "${item.title}"? This cannot be undone.`}
+                  isPending={isDeleting}
+                  onConfirm={() => onDeleteLocalEvent(item)}
+                  trigger={
+                    <button
+                      type="button"
+                      onClick={(event) => event.stopPropagation()}
+                      disabled={isDeleting}
+                      className={`grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted-foreground transition hover:bg-[color:var(--rose)]/10 hover:text-[color:var(--rose)] focus:opacity-100 disabled:opacity-50 ${
+                        alwaysShowActions ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                      }`}
+                      aria-label={`Delete calendar event ${item.title}`}
+                      title="Delete event"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  }
+                />
+              )}
+            </>
+          )}
+          {item.source === "task" && (
+            <Link
+              to="/app/tasks"
+              className={`grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted-foreground transition hover:bg-white/10 hover:text-foreground focus:opacity-100 ${
+                alwaysShowActions ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+              }`}
+              aria-label={`Edit task ${item.title}`}
+              title="Edit in Tasks"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Link>
           )}
         </div>
       ))}

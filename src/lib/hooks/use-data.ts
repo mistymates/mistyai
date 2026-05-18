@@ -227,7 +227,9 @@ export const useAgenda = () => {
     queryKey: ["agenda", validToken],
     queryFn: async () => {
       const start = new Date();
-      const end = addMonths(start, 1);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 2);
       const items = await getMergedCalendarItems(validToken, { start, end }, logout);
       return items.map((item) => ({
         id: item.id,
