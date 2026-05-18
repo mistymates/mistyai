@@ -66,6 +66,8 @@ async function apiRequest<T>(path: string, init?: RequestInit) {
 }
 
 const dataPath = (table: string) => `/api/data?table=${encodeURIComponent(table)}`;
+const dataPathWithId = (table: string, id: string) =>
+  `${dataPath(table)}&id=${encodeURIComponent(id)}`;
 
 const dataPathWithRange = (table: string, start?: string, end?: string) => {
   const params = new URLSearchParams({ table });
@@ -162,6 +164,12 @@ export const dataService = {
     });
   },
 
+  async deleteCalendarEvent(id: string) {
+    return apiRequest<CalendarEvent>(dataPathWithId("calendar_events", id), {
+      method: "DELETE",
+    });
+  },
+
   async getTransactions() {
     const { data, error } = await supabase
       .from("transactions")
@@ -184,9 +192,15 @@ export const dataService = {
   },
 
   async updateTask(id: string, updates: Partial<Task>) {
-    return apiRequest<Task>(`${dataPath("tasks")}&id=${encodeURIComponent(id)}`, {
+    return apiRequest<Task>(dataPathWithId("tasks", id), {
       method: "PATCH",
       body: JSON.stringify(updates),
+    });
+  },
+
+  async deleteTask(id: string) {
+    return apiRequest<Task>(dataPathWithId("tasks", id), {
+      method: "DELETE",
     });
   },
 
@@ -208,6 +222,12 @@ export const dataService = {
     });
   },
 
+  async deleteNote(id: string) {
+    return apiRequest<Note>(dataPathWithId("notes", id), {
+      method: "DELETE",
+    });
+  },
+
   async createJournalEntry(entry: Partial<JournalEntry>) {
     return apiRequest<JournalEntry>(dataPath("journal_entries"), {
       method: "POST",
@@ -215,10 +235,22 @@ export const dataService = {
     });
   },
 
+  async deleteJournalEntry(id: string) {
+    return apiRequest<JournalEntry>(dataPathWithId("journal_entries", id), {
+      method: "DELETE",
+    });
+  },
+
   async createProject(project: Partial<Project>) {
     return apiRequest<Project>(dataPath("projects"), {
       method: "POST",
       body: JSON.stringify(project),
+    });
+  },
+
+  async deleteProject(id: string) {
+    return apiRequest<Project>(dataPathWithId("projects", id), {
+      method: "DELETE",
     });
   },
 

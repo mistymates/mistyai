@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, Trash2 } from "lucide-react";
 import { useProjects, useTasks } from "@/lib/hooks/use-data";
-import { useCreateProject } from "@/lib/hooks/use-mutations";
+import { useCreateProject, useDeleteProject } from "@/lib/hooks/use-mutations";
 import { useMemo, useState } from "react";
 import { CreateItemDialog } from "@/components/CreateItemDialog";
+import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 import { Input } from "@/components/ui/input";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { toast } from "sonner";
@@ -18,6 +19,7 @@ function ProjectsPage() {
   const { data: projects = [], isLoading: projectsLoading } = useProjects();
   const { data: tasks = [], isLoading: tasksLoading } = useTasks();
   const createProject = useCreateProject();
+  const deleteProject = useDeleteProject();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newProject, setNewProject] = useState({
     name: "",
@@ -67,6 +69,15 @@ function ProjectsPage() {
       handleProjectDialogOpenChange(false);
     } catch {
       toast.error("Failed to create project");
+    }
+  };
+
+  const handleDeleteProject = async (id: string, name: string) => {
+    try {
+      await deleteProject.mutateAsync(id);
+      toast.success("Project deleted");
+    } catch {
+      toast.error("Failed to delete project");
     }
   };
 
@@ -208,13 +219,33 @@ function ProjectsPage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.05 }}
-            className="glass-card p-5"
+            className="glass-card group p-5"
           >
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-display font-semibold">{p.name}</h3>
-              <span className="text-xs text-muted-foreground">
-                {p.tasks_done}/{p.tasks_count}
-              </span>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground">
+                  {p.tasks_done}/{p.tasks_count}
+                </span>
+                <DeleteConfirmDialog
+                  title="Delete project?"
+                  description={`Delete "${p.name}"? This cannot be undone.`}
+                  isPending={deleteProject.isPending}
+                  onConfirm={() => handleDeleteProject(p.id, p.name)}
+                  trigger={
+                    <button
+                      type="button"
+                      onClick={(event) => event.stopPropagation()}
+                      disabled={deleteProject.isPending}
+                      className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground opacity-0 transition hover:bg-[color:var(--rose)]/10 hover:text-[color:var(--rose)] group-hover:opacity-100 focus:opacity-100 disabled:opacity-50"
+                      aria-label={`Delete project ${p.name}`}
+                      title="Delete project"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  }
+                />
+              </div>
             </div>
             <div className="h-2 rounded-full bg-white/5 overflow-hidden">
               <div

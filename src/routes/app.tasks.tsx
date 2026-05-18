@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import { CheckCircle2, Circle, Plus } from "lucide-react";
+import { CheckCircle2, Circle, Plus, Trash2 } from "lucide-react";
 import { useTasks } from "@/lib/hooks/use-data";
-import { useToggleTask, useCreateTask } from "@/lib/hooks/use-mutations";
+import { useToggleTask, useCreateTask, useDeleteTask } from "@/lib/hooks/use-mutations";
 import type { Task } from "@/lib/types/database";
 import { CreateItemDialog } from "@/components/CreateItemDialog";
+import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 import { Input } from "@/components/ui/input";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { toast } from "sonner";
@@ -19,6 +20,7 @@ function TasksPage() {
   const { data: tasks = [], isLoading } = useTasks();
   const { mutate: toggleTask } = useToggleTask();
   const createTask = useCreateTask();
+  const deleteTask = useDeleteTask();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newTask, setNewTask] = useState<{
     title: string;
@@ -51,6 +53,15 @@ function TasksPage() {
       handleTaskDialogOpenChange(false);
     } catch {
       toast.error("Failed to create task");
+    }
+  };
+
+  const handleDeleteTask = async (task: Task) => {
+    try {
+      await deleteTask.mutateAsync(task.id);
+      toast.success("Task deleted");
+    } catch {
+      toast.error("Failed to delete task");
     }
   };
 
@@ -152,21 +163,29 @@ function TasksPage() {
             <h2 className="font-display font-semibold mb-3">{g}</h2>
             <div className="space-y-1">
               {list.map((t) => (
-                <button
+                <div
                   key={t.id}
-                  onClick={() => toggleTask({ id: t.id, done: !t.done })}
-                  className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-white/5 transition text-left"
+                  className="group w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-white/5 transition text-left"
                 >
-                  {t.done ? (
-                    <CheckCircle2 className="h-4 w-4 text-[color:var(--mint)] shrink-0" />
-                  ) : (
-                    <Circle className="h-4 w-4 text-muted-foreground shrink-0" />
-                  )}
-                  <span
-                    className={`flex-1 text-sm ${t.done ? "line-through text-muted-foreground" : ""}`}
+                  <button
+                    type="button"
+                    onClick={() => toggleTask({ id: t.id, done: !t.done })}
+                    className="shrink-0"
+                    aria-label={t.done ? "Mark task incomplete" : "Mark task complete"}
+                  >
+                    {t.done ? (
+                      <CheckCircle2 className="h-4 w-4 text-[color:var(--mint)]" />
+                    ) : (
+                      <Circle className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleTask({ id: t.id, done: !t.done })}
+                    className={`flex-1 text-left text-sm ${t.done ? "line-through text-muted-foreground" : ""}`}
                   >
                     {t.title}
-                  </span>
+                  </button>
                   <span
                     className={`text-[10px] uppercase tracking-wider ${
                       t.priority === "high"
@@ -178,7 +197,25 @@ function TasksPage() {
                   >
                     {t.priority}
                   </span>
-                </button>
+                  <DeleteConfirmDialog
+                    title="Delete task?"
+                    description={`Delete "${t.title}"? This cannot be undone.`}
+                    isPending={deleteTask.isPending}
+                    onConfirm={() => handleDeleteTask(t)}
+                    trigger={
+                      <button
+                        type="button"
+                        onClick={(event) => event.stopPropagation()}
+                        disabled={deleteTask.isPending}
+                        className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted-foreground opacity-0 transition hover:bg-[color:var(--rose)]/10 hover:text-[color:var(--rose)] group-hover:opacity-100 focus:opacity-100 disabled:opacity-50"
+                        aria-label={`Delete task ${t.title}`}
+                        title="Delete task"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    }
+                  />
+                </div>
               ))}
             </div>
           </motion.section>

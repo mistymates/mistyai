@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import { Plus, Search, Pin, Loader2 } from "lucide-react";
+import { Plus, Search, Pin, Loader2, Trash2 } from "lucide-react";
 import { useNotes } from "@/lib/hooks/use-data";
-import { useCreateNote } from "@/lib/hooks/use-mutations";
+import { useCreateNote, useDeleteNote } from "@/lib/hooks/use-mutations";
 import { CreateItemDialog } from "@/components/CreateItemDialog";
+import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
@@ -17,6 +18,7 @@ export const Route = createFileRoute("/app/notes")({
 function NotesPage() {
   const { data: notes = [], isLoading } = useNotes();
   const createNote = useCreateNote();
+  const deleteNote = useDeleteNote();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newNote, setNewNote] = useState({ title: "", excerpt: "", tag: "" });
 
@@ -42,6 +44,15 @@ function NotesPage() {
       handleNoteDialogOpenChange(false);
     } catch {
       toast.error("Failed to create note");
+    }
+  };
+
+  const handleDeleteNote = async (id: string, title: string) => {
+    try {
+      await deleteNote.mutateAsync(id);
+      toast.success("Note deleted");
+    } catch {
+      toast.error("Failed to delete note");
     }
   };
 
@@ -147,7 +158,27 @@ function NotesPage() {
           >
             <div className="flex items-start justify-between mb-2">
               <h3 className="font-display font-semibold">{n.title}</h3>
-              <Pin className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition" />
+              <div className="flex items-center gap-1">
+                <Pin className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition" />
+                <DeleteConfirmDialog
+                  title="Delete note?"
+                  description={`Delete "${n.title}"? This cannot be undone.`}
+                  isPending={deleteNote.isPending}
+                  onConfirm={() => handleDeleteNote(n.id, n.title)}
+                  trigger={
+                    <button
+                      type="button"
+                      onClick={(event) => event.stopPropagation()}
+                      disabled={deleteNote.isPending}
+                      className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground opacity-0 transition hover:bg-[color:var(--rose)]/10 hover:text-[color:var(--rose)] group-hover:opacity-100 focus:opacity-100 disabled:opacity-50"
+                      aria-label={`Delete note ${n.title}`}
+                      title="Delete note"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  }
+                />
+              </div>
             </div>
             <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">
               {n.excerpt}

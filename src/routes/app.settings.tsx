@@ -1,15 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Check, ChevronDown, User, Brain, Palette, Mic, Bell } from "lucide-react";
+import { User, Brain, Palette, Mic, Bell } from "lucide-react";
+import { DropdownSelect } from "@/components/DropdownSelect";
 import { SpotifyIntegration } from "@/components/SpotifyIntegration";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { useAssistant } from "@/lib/assistant-store";
 import {
   getPersonalityById,
@@ -289,41 +283,6 @@ function SettingsPage() {
         </motion.div>
       </div>
     </div>
-  );
-}
-
-function DropdownSelect({
-  value,
-  options,
-  onChange,
-}: {
-  value: string;
-  options: { value: string; label: string }[];
-  onChange: (value: string) => void;
-}) {
-  const selected = options.find((option) => option.value === value);
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          className="h-10 w-full justify-between rounded-lg border border-white/10 bg-white/5 px-3 text-sm font-normal text-foreground shadow-none hover:bg-white/10"
-        >
-          <span className="truncate">{selected?.label ?? value}</span>
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-[--radix-dropdown-menu-trigger-width]">
-        {options.map((option) => (
-          <DropdownMenuItem key={option.value} onSelect={() => onChange(option.value)}>
-            <span className="flex-1">{option.label}</span>
-            {option.value === value && <Check className="h-4 w-4 text-[color:var(--cyan)]" />}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
 

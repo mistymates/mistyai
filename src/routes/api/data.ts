@@ -91,6 +91,22 @@ export const Route = createFileRoute("/api/data")({
         if (error) return json({ error: error.message }, { status: 500 });
         return json(data);
       },
+      DELETE: async ({ request }: { request: Request }) => {
+        const supabase = createSupabaseAdminClient();
+        if (!supabase) return json({ error: "Supabase configuration missing" }, { status: 500 });
+
+        const url = new URL(request.url);
+        const table = getTable(url);
+        const id = url.searchParams.get("id");
+
+        if (!table) return json({ error: "Unsupported table" }, { status: 400 });
+        if (!id) return json({ error: "Row id is required" }, { status: 400 });
+
+        const { data, error } = await supabase.from(table).delete().eq("id", id).select().single();
+
+        if (error) return json({ error: error.message }, { status: 500 });
+        return json(data);
+      },
     },
   },
 });

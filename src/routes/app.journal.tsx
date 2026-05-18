@@ -1,9 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import { BookHeart, Smile, Meh, Frown } from "lucide-react";
+import { BookHeart, Smile, Meh, Frown, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { useCreateJournalEntry } from "@/lib/hooks/use-mutations";
+import { useCreateJournalEntry, useDeleteJournalEntry } from "@/lib/hooks/use-mutations";
 import { useJournalEntries } from "@/lib/hooks/use-data";
+import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/app/journal")({
   head: () => ({ meta: [{ title: "Journal - Misty" }] }),
@@ -14,7 +16,17 @@ function JournalPage() {
   const [entry, setEntry] = useState("");
   const [mood, setMood] = useState<"Smile" | "Meh" | "Frown" | null>(null);
   const { mutate: createEntry } = useCreateJournalEntry();
+  const deleteJournalEntry = useDeleteJournalEntry();
   const { data: entries = [] } = useJournalEntries();
+
+  const handleDeleteEntry = async (id: string) => {
+    try {
+      await deleteJournalEntry.mutateAsync(id);
+      toast.success("Journal entry deleted");
+    } catch {
+      toast.error("Failed to delete journal entry");
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -80,7 +92,9 @@ function JournalPage() {
       <section className="space-y-3">
         <h2 className="font-display text-lg font-semibold">Recent entries</h2>
         {entries.length === 0 ? (
-          <div className="glass-card p-5 text-sm text-muted-foreground">No journal entries yet.</div>
+          <div className="glass-card p-5 text-sm text-muted-foreground">
+            No journal entries yet.
+          </div>
         ) : (
           entries.map((item, i) => (
             <motion.div
@@ -88,13 +102,33 @@ function JournalPage() {
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: i * 0.05 }}
-              className="glass-card p-5 hover:border-white/20 transition cursor-pointer"
+              className="glass-card group p-5 hover:border-white/20 transition cursor-pointer"
             >
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs text-muted-foreground">
                   {new Date(item.created_at).toLocaleDateString()}
                 </span>
-                <Smile className="h-4 w-4 text-[color:var(--mint)]" />
+                <div className="flex items-center gap-1">
+                  <Smile className="h-4 w-4 text-[color:var(--mint)]" />
+                  <DeleteConfirmDialog
+                    title="Delete journal entry?"
+                    description="Delete this journal entry? This cannot be undone."
+                    isPending={deleteJournalEntry.isPending}
+                    onConfirm={() => handleDeleteEntry(item.id)}
+                    trigger={
+                      <button
+                        type="button"
+                        onClick={(event) => event.stopPropagation()}
+                        disabled={deleteJournalEntry.isPending}
+                        className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground opacity-0 transition hover:bg-[color:var(--rose)]/10 hover:text-[color:var(--rose)] group-hover:opacity-100 focus:opacity-100 disabled:opacity-50"
+                        aria-label="Delete journal entry"
+                        title="Delete journal entry"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    }
+                  />
+                </div>
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
                 {item.content}

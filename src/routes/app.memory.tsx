@@ -7,6 +7,7 @@ import { useCreateMemory, useDeleteMemory } from "@/lib/hooks/use-mutations";
 import { MemoryCategory } from "@/lib/types/database";
 import { OrbitalMemoryVault } from "@/components/memory/OrbitalMemoryVault";
 import { CreateItemDialog } from "@/components/CreateItemDialog";
+import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { toast } from "sonner";
@@ -35,6 +36,7 @@ function MemoryPage() {
   const [selectedCategory, setSelectedCategory] = useState<"All" | MemoryCategory>("All");
   const [viewMode, setViewMode] = useState<"map" | "list">("map");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [memoryToDelete, setMemoryToDelete] = useState<string | null>(null);
   const [newMemory, setNewMemory] = useState<{ content: string; category: MemoryCategory }>({
     content: "",
     category: "Me",
@@ -69,12 +71,19 @@ function MemoryPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this memory?")) return;
+    setMemoryToDelete(id);
+  };
+
+  const confirmDeleteMemory = async () => {
+    if (!memoryToDelete) return;
+
     try {
-      await deleteMemory.mutateAsync(id);
+      await deleteMemory.mutateAsync(memoryToDelete);
       toast.success("Memory removed");
     } catch (error) {
       toast.error("Failed to remove memory");
+    } finally {
+      setMemoryToDelete(null);
     }
   };
 
@@ -283,6 +292,16 @@ function MemoryPage() {
           </p>
         </div>
       )}
+      <DeleteConfirmDialog
+        open={Boolean(memoryToDelete)}
+        onOpenChange={(open) => {
+          if (!open) setMemoryToDelete(null);
+        }}
+        title="Delete memory?"
+        description="Delete this memory from the vault? This cannot be undone."
+        isPending={deleteMemory.isPending}
+        onConfirm={confirmDeleteMemory}
+      />
     </div>
   );
 }

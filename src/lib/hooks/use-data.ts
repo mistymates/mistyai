@@ -1,4 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
+import axios from "axios";
+import { toast } from "sonner";
 import { dataService } from "@/lib/services/data-service";
 import { googleCalendarService } from "@/lib/services/google-calendar-service";
 import { useGoogleAuthStore } from "@/lib/stores/google-auth-store";
@@ -69,6 +71,8 @@ type CalendarRange = {
   end: Date;
 };
 
+let lastExpiredGoogleToken: string | null = null;
+
 const toDateKey = (value: string | Date) => {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "";
@@ -136,22 +140,55 @@ const normalizeGoogleEvent = (
   };
 };
 
-async function getMergedCalendarItems(token: string | null, range: CalendarRange) {
+function isGoogleAuthError(error: unknown) {
+  return (
+    axios.isAxiosError(error) && (error.response?.status === 401 || error.response?.status === 403)
+  );
+}
+
+async function getGoogleCalendarEvents(
+  token: string | null,
+  range: CalendarRange,
+  onGoogleAuthExpired?: () => void,
+) {
+  if (!token) return [] as CalendarItem[];
+
   const timeMin = range.start.toISOString();
   const timeMax = range.end.toISOString();
-  const [localEvents, tasks, googleEvents, holidayEvents] = await Promise.all([
+
+  try {
+    const [googleEvents, holidayEvents] = await Promise.all([
+      googleCalendarService.getEvents(token, { timeMin, timeMax, maxResults: 250 }),
+      googleCalendarService.getIndonesiaHolidays(token, { timeMin, timeMax, maxResults: 100 }),
+    ]);
+
+    return [
+      ...googleEvents.map((event) => normalizeGoogleEvent(event, "google")),
+      ...holidayEvents.map((event) => normalizeGoogleEvent(event, "holiday")),
+    ];
+  } catch (error) {
+    if (isGoogleAuthError(error)) {
+      onGoogleAuthExpired?.();
+      if (lastExpiredGoogleToken !== token) {
+        toast.error("Google Calendar session expired. Please reconnect.");
+        lastExpiredGoogleToken = token;
+      }
+    }
+    return [] as CalendarItem[];
+  }
+}
+
+async function getMergedCalendarItems(
+  token: string | null,
+  range: CalendarRange,
+  onGoogleAuthExpired?: () => void,
+) {
+  const timeMin = range.start.toISOString();
+  const timeMax = range.end.toISOString();
+  const [localEvents, tasks, googleItems] = await Promise.all([
     dataService.getCalendarEvents(timeMin, timeMax),
     dataService.getTasks(),
-    token
-      ? googleCalendarService
-          .getEvents(token, { timeMin, timeMax, maxResults: 250 })
-          .catch(() => [] as GoogleCalendarEvent[])
-      : Promise.resolve([] as GoogleCalendarEvent[]),
-    token
-      ? googleCalendarService
-          .getIndonesiaHolidays(token, { timeMin, timeMax, maxResults: 100 })
-          .catch(() => [] as GoogleCalendarEvent[])
-      : Promise.resolve([] as GoogleCalendarEvent[]),
+    getGoogleCalendarEvents(token, range, onGoogleAuthExpired),
   ]);
 
   return [
@@ -160,19 +197,21 @@ async function getMergedCalendarItems(token: string | null, range: CalendarRange
       .filter((task) => isWithinRange(task.due_date, range.start, range.end))
       .map(normalizeTask)
       .filter((item): item is CalendarItem => Boolean(item)),
-    ...googleEvents.map((event) => normalizeGoogleEvent(event, "google")),
-    ...holidayEvents.map((event) => normalizeGoogleEvent(event, "holiday")),
+    ...googleItems,
   ].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
 }
 
 export const useCalendarItems = ({ start, end }: CalendarRange) => {
   const token = useGoogleAuthStore((state) => state.token);
+  const expiresAt = useGoogleAuthStore((state) => state.expiresAt);
+  const logout = useGoogleAuthStore((state) => state.logout);
+  const validToken = token && expiresAt && expiresAt > Date.now() ? token : null;
   const startKey = start.toISOString();
   const endKey = end.toISOString();
 
   return useQuery({
-    queryKey: ["calendar-items", token, startKey, endKey],
-    queryFn: () => getMergedCalendarItems(token, { start, end }),
+    queryKey: ["calendar-items", validToken, startKey, endKey],
+    queryFn: () => getMergedCalendarItems(validToken, { start, end }, logout),
     retry: false,
     initialData: [],
   });
@@ -180,13 +219,16 @@ export const useCalendarItems = ({ start, end }: CalendarRange) => {
 
 export const useAgenda = () => {
   const token = useGoogleAuthStore((state) => state.token);
+  const expiresAt = useGoogleAuthStore((state) => state.expiresAt);
+  const logout = useGoogleAuthStore((state) => state.logout);
+  const validToken = token && expiresAt && expiresAt > Date.now() ? token : null;
 
   return useQuery({
-    queryKey: ["agenda", token],
+    queryKey: ["agenda", validToken],
     queryFn: async () => {
       const start = new Date();
       const end = addMonths(start, 1);
-      const items = await getMergedCalendarItems(token, { start, end });
+      const items = await getMergedCalendarItems(validToken, { start, end }, logout);
       return items.map((item) => ({
         id: item.id,
         title: item.title,

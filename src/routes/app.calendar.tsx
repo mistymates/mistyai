@@ -10,12 +10,15 @@ import {
   LogOut,
   Plus,
   RotateCcw,
+  Trash2,
 } from "lucide-react";
 import { useGoogleLogin } from "@react-oauth/google";
 import { toast } from "sonner";
 import { useCalendarItems, type CalendarItem } from "@/lib/hooks/use-data";
-import { useCreateCalendarEvent } from "@/lib/hooks/use-mutations";
+import { useCreateCalendarEvent, useDeleteCalendarEvent } from "@/lib/hooks/use-mutations";
 import { useGoogleAuthStore } from "@/lib/stores/google-auth-store";
+import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
+import { DropdownSelect } from "@/components/DropdownSelect";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -38,6 +41,13 @@ const months = [
   "October",
   "November",
   "December",
+];
+
+const eventTypeOptions = [
+  { value: "event", label: "Event" },
+  { value: "meeting", label: "Meeting" },
+  { value: "focus", label: "Focus" },
+  { value: "personal", label: "Personal" },
 ];
 
 const sourceStyles: Record<CalendarItem["source"], { dot: string; label: string; cell: string }> = {
@@ -117,9 +127,13 @@ function CalendarPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [eventForm, setEventForm] = useState({ title: "", time: "", type: "event" });
   const token = useGoogleAuthStore((state) => state.token);
+  const expiresAt = useGoogleAuthStore((state) => state.expiresAt);
   const setToken = useGoogleAuthStore((state) => state.setToken);
   const logout = useGoogleAuthStore((state) => state.logout);
   const createCalendarEvent = useCreateCalendarEvent();
+  const deleteCalendarEvent = useDeleteCalendarEvent();
+  const isGoogleConnected = Boolean(token && expiresAt && expiresAt > Date.now());
+  const needsGoogleReconnect = Boolean(token && !isGoogleConnected);
 
   const monthRange = useMemo(() => getMonthRange(viewDate), [viewDate]);
   const upcomingRange = useMemo(() => {
@@ -133,8 +147,10 @@ function CalendarPage() {
 
   const login = useGoogleLogin({
     onSuccess: (tokenResponse) => {
-      setToken(tokenResponse.access_token);
+      setToken(tokenResponse.access_token, Number(tokenResponse.expires_in) || undefined);
+      toast.success("Google Calendar connected");
     },
+    onError: () => toast.error("Failed to connect Google Calendar"),
     scope: "https://www.googleapis.com/auth/calendar.readonly",
   });
 
@@ -197,6 +213,15 @@ function CalendarPage() {
     }
   };
 
+  const handleDeleteCalendarEvent = async (item: CalendarItem) => {
+    try {
+      await deleteCalendarEvent.mutateAsync(item.id);
+      toast.success("Calendar event deleted");
+    } catch {
+      toast.error("Failed to delete calendar event");
+    }
+  };
+
   const setMonth = (month: number) => {
     setViewDate((current) => new Date(current.getFullYear(), month, 1));
   };
@@ -225,13 +250,13 @@ function CalendarPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {!token ? (
+          {!isGoogleConnected ? (
             <button
               onClick={() => login()}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white text-black text-sm font-medium hover:bg-white/90 transition"
             >
               <CalendarIcon className="h-4 w-4" />
-              Connect Google Calendar
+              {needsGoogleReconnect ? "Reconnect Google Calendar" : "Connect Google Calendar"}
             </button>
           ) : (
             <button
@@ -243,31 +268,21 @@ function CalendarPage() {
             </button>
           )}
 
-          <select
-            value={viewDate.getMonth()}
-            onChange={(event) => setMonth(Number(event.target.value))}
-            className="h-9 rounded-lg glass bg-black/30 px-3 text-sm outline-none hover:bg-white/10"
-            aria-label="Select month"
-          >
-            {months.map((month, index) => (
-              <option key={month} value={index} className="bg-black">
-                {month}
-              </option>
-            ))}
-          </select>
+          <DropdownSelect
+            value={String(viewDate.getMonth())}
+            onChange={(value) => setMonth(Number(value))}
+            options={months.map((month, index) => ({ value: String(index), label: month }))}
+            ariaLabel="Select month"
+            className="h-9 w-[140px] glass bg-black/30"
+          />
 
-          <select
-            value={viewDate.getFullYear()}
-            onChange={(event) => setYear(Number(event.target.value))}
-            className="h-9 rounded-lg glass bg-black/30 px-3 text-sm outline-none hover:bg-white/10"
-            aria-label="Select year"
-          >
-            {yearOptions.map((year) => (
-              <option key={year} value={year} className="bg-black">
-                {year}
-              </option>
-            ))}
-          </select>
+          <DropdownSelect
+            value={String(viewDate.getFullYear())}
+            onChange={(value) => setYear(Number(value))}
+            options={yearOptions.map((year) => ({ value: String(year), label: String(year) }))}
+            ariaLabel="Select year"
+            className="h-9 w-[96px] glass bg-black/30"
+          />
 
           <button
             onClick={() => setViewDate((current) => addMonths(current, -1))}
@@ -319,9 +334,17 @@ function CalendarPage() {
               const itemStyle = primaryItem ? sourceStyles[primaryItem.source] : null;
 
               return (
-                <button
+                <div
                   key={dateKey}
-                  onClick={() => openCreateDialog(dateKey)}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setSelectedDate(dateKey)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setSelectedDate(dateKey);
+                    }
+                  }}
                   className={`group min-h-24 rounded-xl border p-2 text-left text-sm transition hover:bg-white/8 ${
                     isSelected ? "border-white/35 bg-white/10" : "border-white/5"
                   } ${itemStyle?.cell || ""} ${
@@ -338,7 +361,18 @@ function CalendarPage() {
                     >
                       {day}
                     </span>
-                    <Plus className="h-3.5 w-3.5 text-muted-foreground opacity-0 transition group-hover:opacity-100" />
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openCreateDialog(dateKey);
+                      }}
+                      className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground opacity-0 transition hover:bg-white/10 hover:text-foreground group-hover:opacity-100 focus:opacity-100"
+                      aria-label={`Add event on ${dateKey}`}
+                      title="Add event"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
                   </div>
 
                   {dayItems.length > 0 && (
@@ -363,7 +397,7 @@ function CalendarPage() {
                       )}
                     </div>
                   )}
-                </button>
+                </div>
               );
             })}
           </div>
@@ -389,19 +423,28 @@ function CalendarPage() {
                 Add
               </button>
             </div>
-            <CalendarList items={selectedItems} emptyText="Nothing scheduled for this date." />
+            <CalendarList
+              items={selectedItems}
+              emptyText="Nothing scheduled for this date."
+              onDeleteLocalEvent={handleDeleteCalendarEvent}
+              isDeleting={deleteCalendarEvent.isPending}
+            />
           </section>
 
           <section className="glass-card p-5">
             <h3 className="font-display font-semibold">Upcoming</h3>
             <p className="mb-3 mt-1 text-xs text-muted-foreground">
-              Next month from today{token ? ", including Google" : ""}
+              Next month from today{isGoogleConnected ? ", including Google" : ""}
             </p>
             <CalendarList
               items={upcomingItems}
               emptyText={
-                token ? "No events scheduled." : "Connect Google Calendar to see Google events."
+                isGoogleConnected
+                  ? "No events scheduled."
+                  : "Connect Google Calendar to see Google events."
               }
+              onDeleteLocalEvent={handleDeleteCalendarEvent}
+              isDeleting={deleteCalendarEvent.isPending}
               showDate
             />
           </section>
@@ -456,25 +499,14 @@ function CalendarPage() {
                 >
                   Type
                 </label>
-                <select
+                <DropdownSelect
                   id="calendar-event-type"
                   value={eventForm.type}
-                  onChange={(event) => setEventForm({ ...eventForm, type: event.target.value })}
-                  className="h-9 w-full rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:ring-1 focus:ring-[color:var(--violet)]"
-                >
-                  <option value="event" className="bg-black">
-                    Event
-                  </option>
-                  <option value="meeting" className="bg-black">
-                    Meeting
-                  </option>
-                  <option value="focus" className="bg-black">
-                    Focus
-                  </option>
-                  <option value="personal" className="bg-black">
-                    Personal
-                  </option>
-                </select>
+                  onChange={(type) => setEventForm({ ...eventForm, type })}
+                  options={eventTypeOptions}
+                  ariaLabel="Select calendar event type"
+                  className="h-9 rounded-md focus-visible:ring-[color:var(--violet)]"
+                />
               </div>
             </div>
             <div className="flex justify-end gap-3 pt-2">
@@ -504,10 +536,14 @@ function CalendarPage() {
 function CalendarList({
   items,
   emptyText,
+  onDeleteLocalEvent,
+  isDeleting = false,
   showDate = false,
 }: {
   items: CalendarItem[];
   emptyText: string;
+  onDeleteLocalEvent?: (item: CalendarItem) => void;
+  isDeleting?: boolean;
   showDate?: boolean;
 }) {
   if (items.length === 0) {
@@ -517,16 +553,7 @@ function CalendarList({
   return (
     <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
       {items.map((item) => (
-        <a
-          key={item.id}
-          href={item.url}
-          target={item.url ? "_blank" : undefined}
-          rel={item.url ? "noreferrer" : undefined}
-          onClick={(event) => {
-            if (!item.url) event.preventDefault();
-          }}
-          className="flex gap-3 rounded-lg p-2 transition hover:bg-white/5"
-        >
+        <div key={item.id} className="group flex gap-3 rounded-lg p-2 transition hover:bg-white/5">
           <div className="w-14 pt-0.5 text-xs font-mono text-muted-foreground">
             {formatTime(item)}
           </div>
@@ -534,7 +561,18 @@ function CalendarList({
             className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${sourceStyles[item.source].dot}`}
           />
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm">{item.title}</div>
+            {item.url ? (
+              <a
+                href={item.url}
+                target="_blank"
+                rel="noreferrer"
+                className="block truncate text-sm hover:underline"
+              >
+                {item.title}
+              </a>
+            ) : (
+              <div className="truncate text-sm">{item.title}</div>
+            )}
             <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
               {showDate && <span>{formatDate(item)}</span>}
               <span>{sourceStyles[item.source].label}</span>
@@ -547,7 +585,27 @@ function CalendarList({
               )}
             </div>
           </div>
-        </a>
+          {item.source === "local" && onDeleteLocalEvent && (
+            <DeleteConfirmDialog
+              title="Delete calendar event?"
+              description={`Delete "${item.title}"? This cannot be undone.`}
+              isPending={isDeleting}
+              onConfirm={() => onDeleteLocalEvent(item)}
+              trigger={
+                <button
+                  type="button"
+                  onClick={(event) => event.stopPropagation()}
+                  disabled={isDeleting}
+                  className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted-foreground opacity-0 transition hover:bg-[color:var(--rose)]/10 hover:text-[color:var(--rose)] group-hover:opacity-100 focus:opacity-100 disabled:opacity-50"
+                  aria-label={`Delete calendar event ${item.title}`}
+                  title="Delete event"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              }
+            />
+          )}
+        </div>
       ))}
     </div>
   );

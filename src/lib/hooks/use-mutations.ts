@@ -51,6 +51,19 @@ export const useCreateTask = () => {
   });
 };
 
+export const useDeleteTask = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => dataService.deleteTask(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["calendar-items"] });
+      queryClient.invalidateQueries({ queryKey: ["agenda"] });
+    },
+  });
+};
+
 export const useToggleHabit = () => {
   const queryClient = useQueryClient();
 
@@ -89,11 +102,33 @@ export const useCreateNote = () => {
   });
 };
 
+export const useDeleteNote = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => dataService.deleteNote(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notes"] });
+    },
+  });
+};
+
 export const useCreateJournalEntry = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (entry: Partial<JournalEntry>) => dataService.createJournalEntry(entry),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["journal_entries"] });
+    },
+  });
+};
+
+export const useDeleteJournalEntry = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => dataService.deleteJournalEntry(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["journal_entries"] });
     },
@@ -111,11 +146,35 @@ export const useCreateProject = () => {
   });
 };
 
+export const useDeleteProject = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => dataService.deleteProject(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+    },
+  });
+};
+
 export const useCreateCalendarEvent = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (event: Partial<CalendarEvent>) => dataService.createCalendarEvent(event),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+      queryClient.invalidateQueries({ queryKey: ["calendar-items"] });
+      queryClient.invalidateQueries({ queryKey: ["agenda"] });
+    },
+  });
+};
+
+export const useDeleteCalendarEvent = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => dataService.deleteCalendarEvent(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
       queryClient.invalidateQueries({ queryKey: ["calendar-items"] });
