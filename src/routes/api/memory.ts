@@ -14,6 +14,15 @@ type RelatedMemory = {
   similarity: number;
 };
 
+const memoryUpdateSchema = z.object({
+  id: idParamSchema,
+  content: z.string().trim().min(1).max(4000).optional(),
+  category: z
+    .enum(["Me", "People", "Preferences", "Goals", "Health", "Relationships"])
+    .optional(),
+  importance: z.number().min(1).max(5).optional(),
+});
+
 export const Route = createFileRoute("/api/memory")({
   server: {
     handlers: {
@@ -158,6 +167,26 @@ export const Route = createFileRoute("/api/memory")({
         if (error) return jsonError(error.message, 500);
 
         return json({ success: true });
+      },
+      PATCH: async ({ request }: { request: Request }) => {
+        const supabase = createSupabaseAdminClient();
+        if (!supabase) return jsonError("Supabase configuration missing", 500);
+
+        const parsed = await parseJsonBody(request, memoryUpdateSchema);
+        if (parsed.response) return parsed.response;
+
+        const { id, ...updates } = parsed.data;
+        if (Object.keys(updates).length === 0) return jsonError("No fields to update", 400);
+
+        const { data, error } = await supabase
+          .from("memories")
+          .update(updates)
+          .eq("id", id)
+          .select("*")
+          .single();
+
+        if (error) return jsonError(error.message, 500);
+        return json(data);
       },
     },
   },

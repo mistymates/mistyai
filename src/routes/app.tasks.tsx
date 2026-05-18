@@ -1,17 +1,19 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { CheckCircle2, Circle, Pencil, Plus, Trash2 } from "lucide-react";
-import { useTasks } from "@/lib/hooks/use-data";
+import { useProjects, useTasks } from "@/lib/hooks/use-data";
 import {
   useToggleTask,
   useCreateTask,
   useDeleteTask,
   useUpdateTask,
+  useCreateReminder,
 } from "@/lib/hooks/use-mutations";
 import type { Task } from "@/lib/types/database";
 import { CreateItemDialog } from "@/components/CreateItemDialog";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
+import { DropdownSelect } from "@/components/DropdownSelect";
 import { Input } from "@/components/ui/input";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { toast } from "sonner";
@@ -23,9 +25,11 @@ export const Route = createFileRoute("/app/tasks")({
 
 function TasksPage() {
   const { data: tasks = [], isLoading } = useTasks();
+  const { data: projects = [] } = useProjects();
   const { mutate: toggleTask } = useToggleTask();
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
+  const createReminder = useCreateReminder();
   const deleteTask = useDeleteTask();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
@@ -34,7 +38,21 @@ function TasksPage() {
     priority: Task["priority"];
     dueDate: string;
     dueTime: string;
-  }>({ title: "", priority: "medium", dueDate: "", dueTime: "" });
+    projectId: string;
+  }>({ title: "", priority: "medium", dueDate: "", dueTime: "", projectId: "none" });
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const editTaskId = params.get("editTask");
+    if (!editTaskId) return;
+    const task = tasks.find((item) => item.id === editTaskId);
+    if (!task) return;
+    openEditTaskDialog(task);
+    params.delete("editTask");
+    const nextQuery = params.toString();
+    const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}`;
+    window.history.replaceState(null, "", nextUrl);
+  }, [tasks]);
 
   const groups = ["Today", "Tomorrow", "This week"];
   const groupedTasks = groups.map((group) => ({
@@ -44,7 +62,7 @@ function TasksPage() {
   const hasVisibleTasks = groupedTasks.some(({ list }) => list.length > 0);
 
   const resetTaskForm = () =>
-    setNewTask({ title: "", priority: "medium", dueDate: "", dueTime: "" });
+    setNewTask({ title: "", priority: "medium", dueDate: "", dueTime: "", projectId: "none" });
 
   const handleTaskDialogOpenChange = (open: boolean) => {
     setIsDialogOpen(open);
@@ -54,7 +72,7 @@ function TasksPage() {
     }
   };
 
-  const openEditTaskDialog = (task: Task) => {
+  function openEditTaskDialog(task: Task) {
     const due = task.due_date ? new Date(task.due_date) : null;
     const dueDate =
       due && !Number.isNaN(due.getTime())
@@ -73,9 +91,10 @@ function TasksPage() {
       priority: task.priority,
       dueDate,
       dueTime,
+      projectId: task.project_id || "none",
     });
     setIsDialogOpen(true);
-  };
+  }
 
   const handleCreateTask = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -94,16 +113,28 @@ function TasksPage() {
             title,
             priority: newTask.priority,
             due_date: dueDateTime ? dueDateTime.toISOString() : null,
+            project_id: newTask.projectId === "none" ? null : newTask.projectId,
           },
         });
         toast.success("Task updated");
       } else {
-        await createTask.mutateAsync({
+        const createdTask = await createTask.mutateAsync({
           title,
           done: false,
           priority: newTask.priority,
           due_date: dueDateTime ? dueDateTime.toISOString() : null,
+          project_id: newTask.projectId === "none" ? null : newTask.projectId,
         });
+        if (dueDateTime) {
+          await createReminder.mutateAsync({
+            source_type: "task",
+            source_id: createdTask.id,
+            title: `Task due: ${title}`,
+            message: "This task is due now.",
+            scheduled_at: dueDateTime.toISOString(),
+            status: "pending",
+          });
+        }
         toast.success("Task created");
       }
       handleTaskDialogOpenChange(false);
@@ -221,6 +252,21 @@ function TasksPage() {
                 className="bg-white/5 border-white/10 focus-visible:ring-[color:var(--violet)]"
               />
             </div>
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              Project
+            </label>
+            <DropdownSelect
+              value={newTask.projectId}
+              onChange={(value) => setNewTask({ ...newTask, projectId: value })}
+              options={[
+                { value: "none", label: "No project" },
+                ...projects.map((project) => ({ value: project.id, label: project.name })),
+              ]}
+              ariaLabel="Select project for task"
+              className="h-9 rounded-md"
+            />
           </div>
         </CreateItemDialog>
       </header>

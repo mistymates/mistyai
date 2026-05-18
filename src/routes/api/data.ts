@@ -9,6 +9,7 @@ const tableConfig = {
   projects: { orderBy: "created_at", ascending: false },
   journal_entries: { orderBy: "created_at", ascending: false },
   calendar_events: { orderBy: "start_time", ascending: true },
+  reminders: { orderBy: "scheduled_at", ascending: true },
 } as const;
 
 type TableName = keyof typeof tableConfig;

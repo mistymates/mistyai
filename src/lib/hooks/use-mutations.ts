@@ -8,6 +8,7 @@ import type {
   Project,
   Memory,
   CalendarEvent,
+  Reminder,
 } from "@/lib/types/database";
 
 export const useToggleTask = () => {
@@ -127,6 +128,18 @@ export const useDeleteNote = () => {
   });
 };
 
+export const useUpdateNote = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<Note> }) =>
+      dataService.updateNote(id, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notes"] });
+    },
+  });
+};
+
 export const useCreateJournalEntry = () => {
   const queryClient = useQueryClient();
 
@@ -149,6 +162,18 @@ export const useDeleteJournalEntry = () => {
   });
 };
 
+export const useUpdateJournalEntry = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<JournalEntry> }) =>
+      dataService.updateJournalEntry(id, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["journal_entries"] });
+    },
+  });
+};
+
 export const useCreateProject = () => {
   const queryClient = useQueryClient();
 
@@ -165,6 +190,18 @@ export const useDeleteProject = () => {
 
   return useMutation({
     mutationFn: (id: string) => dataService.deleteProject(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+    },
+  });
+};
+
+export const useUpdateProject = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<Project> }) =>
+      dataService.updateProject(id, updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
     },
@@ -229,6 +266,55 @@ export const useDeleteMemory = () => {
     mutationFn: (id: string) => dataService.deleteMemory(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["memories"] });
+    },
+  });
+};
+
+export const useUpdateMemory = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<Memory> }) =>
+      dataService.updateMemory(id, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["memories"] });
+    },
+  });
+};
+
+export const useCreateReminder = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (reminder: Partial<Reminder>) => dataService.createReminder(reminder),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["reminders"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+};
+
+export const useUpdateReminder = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<Reminder> }) =>
+      dataService.updateReminder(id, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["reminders"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+};
+
+export const useDeleteReminder = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => dataService.deleteReminder(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["reminders"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
   });
 };

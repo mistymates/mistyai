@@ -22,6 +22,13 @@ export const assistantSettingsPatchSchema = z.object({
   voiceEnabled: z.boolean().optional(),
   preferredVoice: z.string().trim().min(1).max(128).optional(),
   personalityPrompt: z.string().trim().min(1).max(8000).optional(),
+  accent: z.string().trim().min(1).max(32).optional(),
+  theme: z.enum(["dark", "auto", "light"]).optional(),
+  model: z.string().trim().min(1).max(128).optional(),
+  dailySummaryEnabled: z.boolean().optional(),
+  quietHoursEnabled: z.boolean().optional(),
+  habitRemindersEnabled: z.boolean().optional(),
+  taskRemindersEnabled: z.boolean().optional(),
 });
 
 export const ttsRequestSchema = z.object({
@@ -53,6 +60,7 @@ export const dataWriteSchemas = {
     done: z.boolean().optional(),
     priority: z.enum(["low", "medium", "high"]).optional(),
     due_date: z.string().trim().max(128).nullable().optional(),
+    project_id: z.string().trim().max(128).nullable().optional(),
   }),
   notes: z.object({
     title: z.string().trim().min(1).max(240).optional(),
@@ -76,5 +84,13 @@ export const dataWriteSchemas = {
     start_time: dateTimeText.optional(),
     end_time: z.string().trim().max(128).nullable().optional(),
     type: z.string().trim().max(64).nullable().optional(),
+  }),
+  reminders: z.object({
+    source_type: z.enum(["task", "calendar", "manual"]).optional(),
+    source_id: z.string().trim().max(128).nullable().optional(),
+    title: z.string().trim().min(1).max(240).optional(),
+    message: nullableText,
+    scheduled_at: dateTimeText.optional(),
+    status: z.enum(["pending", "done", "dismissed"]).optional(),
   }),
 } as const;

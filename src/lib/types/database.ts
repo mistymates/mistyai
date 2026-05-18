@@ -4,6 +4,7 @@ export interface Task {
   done: boolean;
   priority: "low" | "medium" | "high";
   due_date: string | null;
+  project_id?: string | null;
   due?: string;
   created_at: string;
   updated_at: string;
@@ -63,6 +64,18 @@ export interface Notification {
   read: boolean;
   type: string | null;
   created_at: string;
+}
+
+export interface Reminder {
+  id: string;
+  source_type: "task" | "calendar" | "manual";
+  source_id: string | null;
+  title: string;
+  message: string | null;
+  scheduled_at: string;
+  status: "pending" | "done" | "dismissed";
+  created_at: string;
+  updated_at: string;
 }
 
 export interface JournalEntry {

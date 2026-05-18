@@ -27,6 +27,18 @@ import {
 } from "lucide-react";
 import { useAssistant } from "@/lib/assistant-store";
 import { useTasks, useNotes, useProjects } from "@/lib/hooks/use-data";
+import {
+  useCreateTask,
+  useCreateNote,
+  useCreateProject,
+  useCreateCalendarEvent,
+  useCreateMemory,
+} from "@/lib/hooks/use-mutations";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 const navItems = [
   { title: "Dashboard", url: "/app/dashboard", icon: LayoutDashboard },
@@ -42,14 +54,24 @@ const navItems = [
   { title: "Settings", url: "/app/settings", icon: Settings },
 ] as const;
 
+type CaptureKind = "task" | "note" | "project" | "event" | "memory" | null;
+
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
+  const [captureKind, setCaptureKind] = useState<CaptureKind>(null);
+  const [value, setValue] = useState("");
   const navigate = useNavigate();
   const openAssistant = useAssistant((s) => s.setOpen);
 
   const { data: tasks = [] } = useTasks();
   const { data: notes = [] } = useNotes();
   const { data: projects = [] } = useProjects();
+
+  const createTask = useCreateTask();
+  const createNote = useCreateNote();
+  const createProject = useCreateProject();
+  const createCalendarEvent = useCreateCalendarEvent();
+  const createMemory = useCreateMemory();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -67,94 +89,151 @@ export function CommandPalette() {
     navigate({ to: url });
   };
 
+  const openCapture = (kind: CaptureKind) => {
+    setValue("");
+    setCaptureKind(kind);
+    setOpen(false);
+  };
+
+  const saveCapture = async () => {
+    const text = value.trim();
+    if (!text || !captureKind) return;
+
+    try {
+      if (captureKind === "task") await createTask.mutateAsync({ title: text, done: false, priority: "medium" });
+      if (captureKind === "note") await createNote.mutateAsync({ title: text, excerpt: "", tag: null });
+      if (captureKind === "project") await createProject.mutateAsync({ name: text, progress: 0, tasks_count: 0, tasks_done: 0 });
+      if (captureKind === "event") await createCalendarEvent.mutateAsync({ title: text, start_time: new Date().toISOString(), end_time: null, type: "event" });
+      if (captureKind === "memory") await createMemory.mutateAsync({ content: text, category: "Me" });
+      toast.success("Created");
+      setCaptureKind(null);
+      setValue("");
+    } catch {
+      toast.error("Failed to create item");
+    }
+  };
+
   return (
-    <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder="Search tasks, notes, projects, or jump anywhere…" />
-      <CommandList className="max-h-[420px]">
-        <CommandEmpty>No results found.</CommandEmpty>
+    <>
+      <CommandDialog open={open} onOpenChange={setOpen}>
+        <CommandInput placeholder="Search tasks, notes, projects, or jump anywhere..." />
+        <CommandList className="max-h-[420px]">
+          <CommandEmpty>No results found.</CommandEmpty>
 
-        <CommandGroup heading="Quick actions">
-          <CommandItem
-            onSelect={() => {
-              setOpen(false);
-              openAssistant(true);
-            }}
-          >
-            <Sparkles className="text-[color:var(--violet)]" />
-            <span>Ask Misty</span>
-            <kbd className="ml-auto text-[10px] text-muted-foreground">⌘J</kbd>
-          </CommandItem>
-          <CommandItem
-            onSelect={() => {
-              setOpen(false);
-              openAssistant(true);
-            }}
-          >
-            <Mic className="text-[color:var(--cyan)]" />
-            <span>Start voice session</span>
-          </CommandItem>
-          <CommandItem onSelect={() => go("/app/tasks")}>
-            <Plus />
-            <span>New task</span>
-          </CommandItem>
-          <CommandItem onSelect={() => go("/app/notes")}>
-            <Plus />
-            <span>New note</span>
-          </CommandItem>
-        </CommandGroup>
-
-        <CommandSeparator />
-
-        <CommandGroup heading="Navigate">
-          {navItems.map((n) => (
-            <CommandItem key={n.url} onSelect={() => go(n.url)} value={`go ${n.title}`}>
-              <n.icon />
-              <span>{n.title}</span>
-              <span className="ml-auto text-[10px] text-muted-foreground">{n.url}</span>
-            </CommandItem>
-          ))}
-        </CommandGroup>
-
-        <CommandSeparator />
-
-        <CommandGroup heading="Tasks">
-          {tasks.map((t) => (
-            <CommandItem key={t.id} onSelect={() => go("/app/tasks")} value={`task ${t.title}`}>
-              <CheckSquare className={t.done ? "text-[color:var(--mint)]" : ""} />
-              <span className={t.done ? "line-through text-muted-foreground" : ""}>{t.title}</span>
-              <span className="ml-auto text-[10px] text-muted-foreground">
-                {t.due_date ? new Date(t.due_date).toLocaleDateString() : ""}
-              </span>
-            </CommandItem>
-          ))}
-        </CommandGroup>
-
-        <CommandGroup heading="Notes">
-          {notes.map((n) => (
-            <CommandItem key={n.id} onSelect={() => go("/app/notes")} value={`note ${n.title}`}>
-              <StickyNote />
-              <span>{n.title}</span>
-              <span className="ml-auto text-[10px] text-muted-foreground">
-                {new Date(n.updated_at).toLocaleDateString()}
-              </span>
-            </CommandItem>
-          ))}
-        </CommandGroup>
-
-        <CommandGroup heading="Projects">
-          {projects.map((p) => (
+          <CommandGroup heading="Quick actions">
             <CommandItem
-              key={p.id}
-              onSelect={() => go("/app/projects")}
-              value={`project ${p.name}`}
+              onSelect={() => {
+                setOpen(false);
+                openAssistant(true);
+              }}
             >
-              <FolderKanban />
-              <span>{p.name}</span>
-              <span className="ml-auto text-[10px] text-muted-foreground">{p.progress}%</span>
+              <Sparkles className="text-[color:var(--violet)]" />
+              <span>Ask Misty</span>
+              <kbd className="ml-auto text-[10px] text-muted-foreground">Cmd+J</kbd>
             </CommandItem>
-          ))}
-        </CommandGroup>
-      </CommandList>
-    </CommandDialog>
+            <CommandItem
+              onSelect={() => {
+                setOpen(false);
+                openAssistant(true);
+              }}
+            >
+              <Mic className="text-[color:var(--cyan)]" />
+              <span>Start voice session</span>
+            </CommandItem>
+            <CommandItem onSelect={() => openCapture("task")}>
+              <Plus />
+              <span>New task</span>
+            </CommandItem>
+            <CommandItem onSelect={() => openCapture("note")}>
+              <Plus />
+              <span>New note</span>
+            </CommandItem>
+            <CommandItem onSelect={() => openCapture("project")}>
+              <Plus />
+              <span>New project</span>
+            </CommandItem>
+            <CommandItem onSelect={() => openCapture("event")}>
+              <Plus />
+              <span>New event</span>
+            </CommandItem>
+            <CommandItem onSelect={() => openCapture("memory")}>
+              <Plus />
+              <span>New memory</span>
+            </CommandItem>
+          </CommandGroup>
+
+          <CommandSeparator />
+
+          <CommandGroup heading="Navigate">
+            {navItems.map((n) => (
+              <CommandItem key={n.url} onSelect={() => go(n.url)} value={`go ${n.title}`}>
+                <n.icon />
+                <span>{n.title}</span>
+                <span className="ml-auto text-[10px] text-muted-foreground">{n.url}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+
+          <CommandSeparator />
+
+          <CommandGroup heading="Tasks">
+            {tasks.map((t) => (
+              <CommandItem key={t.id} onSelect={() => go("/app/tasks")} value={`task ${t.title}`}>
+                <CheckSquare className={t.done ? "text-[color:var(--mint)]" : ""} />
+                <span className={t.done ? "line-through text-muted-foreground" : ""}>{t.title}</span>
+                <span className="ml-auto text-[10px] text-muted-foreground">
+                  {t.due_date ? new Date(t.due_date).toLocaleDateString() : ""}
+                </span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+
+          <CommandGroup heading="Notes">
+            {notes.map((n) => (
+              <CommandItem key={n.id} onSelect={() => go("/app/notes")} value={`note ${n.title}`}>
+                <StickyNote />
+                <span>{n.title}</span>
+                <span className="ml-auto text-[10px] text-muted-foreground">
+                  {new Date(n.updated_at).toLocaleDateString()}
+                </span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+
+          <CommandGroup heading="Projects">
+            {projects.map((p) => (
+              <CommandItem key={p.id} onSelect={() => go("/app/projects")} value={`project ${p.name}`}>
+                <FolderKanban />
+                <span>{p.name}</span>
+                <span className="ml-auto text-[10px] text-muted-foreground">{p.progress}%</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        </CommandList>
+      </CommandDialog>
+
+      <Dialog open={captureKind !== null} onOpenChange={(isOpen) => !isOpen && setCaptureKind(null)}>
+        <DialogContent className="bg-black/90 border-white/10 backdrop-blur-xl sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl">
+              {captureKind ? `New ${captureKind}` : "Quick capture"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            {captureKind === "memory" ? (
+              <Textarea value={value} onChange={(event) => setValue(event.target.value)} placeholder="Memory content" />
+            ) : (
+              <Input value={value} onChange={(event) => setValue(event.target.value)} placeholder="Title" />
+            )}
+            <div className="flex justify-end gap-3">
+              <Button type="button" variant="ghost" onClick={() => setCaptureKind(null)}>Cancel</Button>
+              <Button type="button" onClick={() => void saveCapture()} disabled={!value.trim()}>
+                Save
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

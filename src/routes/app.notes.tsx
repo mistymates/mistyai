@@ -1,49 +1,82 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import { Plus, Search, Pin, Loader2, Trash2 } from "lucide-react";
+import { Plus, Search, Pin, Loader2, Trash2, Pencil } from "lucide-react";
 import { useNotes } from "@/lib/hooks/use-data";
-import { useCreateNote, useDeleteNote } from "@/lib/hooks/use-mutations";
+import { useCreateNote, useDeleteNote, useUpdateNote } from "@/lib/hooks/use-mutations";
 import { CreateItemDialog } from "@/components/CreateItemDialog";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
+import { DropdownSelect } from "@/components/DropdownSelect";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/app/notes")({
-  head: () => ({ meta: [{ title: "Notes — Misty" }] }),
+  head: () => ({ meta: [{ title: "Notes - Misty" }] }),
   component: NotesPage,
 });
 
 function NotesPage() {
   const { data: notes = [], isLoading } = useNotes();
   const createNote = useCreateNote();
+  const updateNote = useUpdateNote();
   const deleteNote = useDeleteNote();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [tagFilter, setTagFilter] = useState("all");
+  const [sortMode, setSortMode] = useState("recent");
   const [newNote, setNewNote] = useState({ title: "", excerpt: "", tag: "" });
 
   const resetNoteForm = () => setNewNote({ title: "", excerpt: "", tag: "" });
 
   const handleNoteDialogOpenChange = (open: boolean) => {
     setIsDialogOpen(open);
-    if (!open) resetNoteForm();
+    if (!open) {
+      setEditingNoteId(null);
+      resetNoteForm();
+    }
   };
 
-  const handleCreateNote = async (event: React.FormEvent<HTMLFormElement>) => {
+  const openEditDialog = (id: string) => {
+    const note = notes.find((item) => item.id === id);
+    if (!note) return;
+    setEditingNoteId(id);
+    setNewNote({
+      title: note.title,
+      excerpt: note.excerpt || "",
+      tag: note.tag || "",
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleSaveNote = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const title = newNote.title.trim();
     if (!title) return;
 
     try {
-      await createNote.mutateAsync({
-        title,
-        excerpt: newNote.excerpt.trim(),
-        tag: newNote.tag.trim() || null,
-      });
-      toast.success("Note created");
+      if (editingNoteId) {
+        await updateNote.mutateAsync({
+          id: editingNoteId,
+          updates: {
+            title,
+            excerpt: newNote.excerpt.trim(),
+            tag: newNote.tag.trim() || null,
+          },
+        });
+        toast.success("Note updated");
+      } else {
+        await createNote.mutateAsync({
+          title,
+          excerpt: newNote.excerpt.trim(),
+          tag: newNote.tag.trim() || null,
+        });
+        toast.success("Note created");
+      }
       handleNoteDialogOpenChange(false);
     } catch {
-      toast.error("Failed to create note");
+      toast.error(editingNoteId ? "Failed to update note" : "Failed to create note");
     }
   };
 
@@ -55,6 +88,30 @@ function NotesPage() {
       toast.error("Failed to delete note");
     }
   };
+
+  const tags = useMemo(
+    () => ["all", ...Array.from(new Set(notes.map((note) => note.tag).filter((tag): tag is string => Boolean(tag))))],
+    [notes],
+  );
+
+  const visibleNotes = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const filtered = notes.filter((note) => {
+      const matchesText =
+        query.length === 0 ||
+        note.title.toLowerCase().includes(query) ||
+        (note.excerpt || "").toLowerCase().includes(query) ||
+        (note.tag || "").toLowerCase().includes(query);
+      const matchesTag = tagFilter === "all" || note.tag === tagFilter;
+      return matchesText && matchesTag;
+    });
+
+    return filtered.sort((a, b) => {
+      if (sortMode === "title") return a.title.localeCompare(b.title);
+      if (sortMode === "tag") return (a.tag || "").localeCompare(b.tag || "");
+      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+    });
+  }, [notes, search, tagFilter, sortMode]);
 
   if (isLoading) {
     return (
@@ -76,21 +133,18 @@ function NotesPage() {
           onOpenChange={handleNoteDialogOpenChange}
           trigger={
             <button className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm bg-gradient-to-r from-[color:var(--violet)] to-[color:var(--cyan)] text-black font-medium">
-              <Plus className="h-3.5 w-3.5" /> New note
+              <Plus className="h-3.5 w-3.5" /> {editingNoteId ? "Edit note" : "New note"}
             </button>
           }
-          title="New Note"
-          submitLabel="Save Note"
+          title={editingNoteId ? "Edit Note" : "New Note"}
+          submitLabel={editingNoteId ? "Save Changes" : "Save Note"}
           submittingLabel="Saving..."
-          isSubmitting={createNote.isPending}
+          isSubmitting={createNote.isPending || updateNote.isPending}
           submitDisabled={!newNote.title.trim()}
-          onSubmit={handleCreateNote}
+          onSubmit={handleSaveNote}
         >
           <div className="space-y-2">
-            <label
-              htmlFor="note-title"
-              className="text-xs font-medium text-muted-foreground uppercase tracking-wider"
-            >
+            <label htmlFor="note-title" className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Title
             </label>
             <Input
@@ -102,10 +156,7 @@ function NotesPage() {
             />
           </div>
           <div className="space-y-2">
-            <label
-              htmlFor="note-excerpt"
-              className="text-xs font-medium text-muted-foreground uppercase tracking-wider"
-            >
+            <label htmlFor="note-excerpt" className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Excerpt
             </label>
             <Textarea
@@ -117,10 +168,7 @@ function NotesPage() {
             />
           </div>
           <div className="space-y-2">
-            <label
-              htmlFor="note-tag"
-              className="text-xs font-medium text-muted-foreground uppercase tracking-wider"
-            >
+            <label htmlFor="note-tag" className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Tag
             </label>
             <Input
@@ -137,18 +185,48 @@ function NotesPage() {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <input
-          placeholder="Search notes…"
+          placeholder="Search notes..."
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
           className="w-full pl-9 h-10 rounded-xl bg-white/5 border border-white/10 text-sm focus:outline-none focus:ring-1 focus:ring-[color:var(--violet)]"
         />
       </div>
 
+      <div className="flex flex-wrap gap-2">
+        <DropdownSelect
+          value={sortMode}
+          onChange={setSortMode}
+          options={[
+            { value: "recent", label: "Recent" },
+            { value: "title", label: "Title" },
+            { value: "tag", label: "Tag" },
+          ]}
+          ariaLabel="Sort notes"
+          className="h-9 w-[140px]"
+        />
+        {tags.map((tag) => (
+          <button
+            key={tag}
+            type="button"
+            onClick={() => setTagFilter(tag)}
+            className={`px-3 py-1 rounded-full text-xs border transition ${
+              tagFilter === tag
+                ? "bg-white/10 border-white/20 text-white"
+                : "bg-white/5 border-white/5 text-muted-foreground hover:bg-white/10 hover:border-white/10"
+            }`}
+          >
+            {tag === "all" ? "All tags" : `#${tag}`}
+          </button>
+        ))}
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {notes.length === 0 && (
+        {visibleNotes.length === 0 && (
           <div className="col-span-full py-20 text-center glass-card">
             <p className="text-muted-foreground italic">No notes found. Create your first one!</p>
           </div>
         )}
-        {notes.map((n, i) => (
+        {visibleNotes.map((n, i) => (
           <motion.div
             key={n.id}
             initial={{ opacity: 0, y: 12 }}
@@ -160,6 +238,18 @@ function NotesPage() {
               <h3 className="font-display font-semibold">{n.title}</h3>
               <div className="flex items-center gap-1">
                 <Pin className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition" />
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    openEditDialog(n.id);
+                  }}
+                  className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground opacity-0 transition hover:bg-white/10 hover:text-foreground group-hover:opacity-100"
+                  aria-label={`Edit note ${n.title}`}
+                  title="Edit note"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
                 <DeleteConfirmDialog
                   title="Delete note?"
                   description={`Delete "${n.title}"? This cannot be undone.`}
@@ -180,9 +270,7 @@ function NotesPage() {
                 />
               </div>
             </div>
-            <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">
-              {n.excerpt}
-            </p>
+            <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">{n.excerpt}</p>
             <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
               {n.tag && <span className="px-2 py-0.5 rounded-full bg-white/5">#{n.tag}</span>}
               <span>{new Date(n.updated_at).toLocaleDateString()}</span>

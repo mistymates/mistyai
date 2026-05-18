@@ -44,6 +44,10 @@ export const useNotifications = () => {
   return useAuthedQuery(["notifications"], () => dataService.getNotifications());
 };
 
+export const useReminders = () => {
+  return useAuthedQuery(["reminders"], () => dataService.getReminders());
+};
+
 export const useProjects = () => {
   return useAuthedQuery(["projects"], () => dataService.getProjects());
 };

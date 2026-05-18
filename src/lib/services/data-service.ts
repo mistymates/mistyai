@@ -10,6 +10,7 @@ import type {
   JournalEntry,
   Memory,
   MemoryCategory,
+  Reminder,
 } from "@/lib/types/database";
 import { memoryService } from "./memory-service";
 
@@ -96,6 +97,21 @@ export const dataService = {
     return await response.json();
   },
 
+  async updateMemory(id: string, updates: Partial<Memory>) {
+    const response = await fetch("/api/memory", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, ...updates }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(error || "Failed to update memory");
+    }
+
+    return await response.json();
+  },
+
   async deleteMemory(id: string) {
     return memoryService.deleteMemory(id);
   },
@@ -164,6 +180,30 @@ export const dataService = {
     });
   },
 
+  async getReminders() {
+    return apiRequest<Reminder[]>(dataPath("reminders"));
+  },
+
+  async createReminder(reminder: Partial<Reminder>) {
+    return apiRequest<Reminder>(dataPath("reminders"), {
+      method: "POST",
+      body: JSON.stringify(reminder),
+    });
+  },
+
+  async updateReminder(id: string, updates: Partial<Reminder>) {
+    return apiRequest<Reminder>(dataPathWithId("reminders", id), {
+      method: "PATCH",
+      body: JSON.stringify(updates),
+    });
+  },
+
+  async deleteReminder(id: string) {
+    return apiRequest<Reminder>(dataPathWithId("reminders", id), {
+      method: "DELETE",
+    });
+  },
+
   async updateCalendarEvent(id: string, updates: Partial<CalendarEvent>) {
     return apiRequest<CalendarEvent>(dataPathWithId("calendar_events", id), {
       method: "PATCH",
@@ -229,6 +269,13 @@ export const dataService = {
     });
   },
 
+  async updateNote(id: string, updates: Partial<Note>) {
+    return apiRequest<Note>(dataPathWithId("notes", id), {
+      method: "PATCH",
+      body: JSON.stringify(updates),
+    });
+  },
+
   async deleteNote(id: string) {
     return apiRequest<Note>(dataPathWithId("notes", id), {
       method: "DELETE",
@@ -242,6 +289,13 @@ export const dataService = {
     });
   },
 
+  async updateJournalEntry(id: string, updates: Partial<JournalEntry>) {
+    return apiRequest<JournalEntry>(dataPathWithId("journal_entries", id), {
+      method: "PATCH",
+      body: JSON.stringify(updates),
+    });
+  },
+
   async deleteJournalEntry(id: string) {
     return apiRequest<JournalEntry>(dataPathWithId("journal_entries", id), {
       method: "DELETE",
@@ -252,6 +306,13 @@ export const dataService = {
     return apiRequest<Project>(dataPath("projects"), {
       method: "POST",
       body: JSON.stringify(project),
+    });
+  },
+
+  async updateProject(id: string, updates: Partial<Project>) {
+    return apiRequest<Project>(dataPathWithId("projects", id), {
+      method: "PATCH",
+      body: JSON.stringify(updates),
     });
   },
 

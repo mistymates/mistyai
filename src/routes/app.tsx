@@ -6,7 +6,7 @@ import { Bell, Search, Sparkles, PanelRight } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAssistant } from "@/lib/assistant-store";
 import { useRealtime } from "@/lib/hooks/use-realtime";
-import { useNotifications } from "@/lib/hooks/use-data";
+import { useNotifications, useReminders } from "@/lib/hooks/use-data";
 import { dataService } from "@/lib/services/data-service";
 import { SpotifyPlaybackBridge } from "@/components/SpotifyPlaybackBridge";
 import { ShaderBackground } from "@/components/ShaderBackground";
@@ -31,7 +31,11 @@ function AppLayout() {
   const notifications = useAssistant((s) => s.notifications);
   const setNotifications = useAssistant((s) => s.setNotifications);
   const { data: notificationRows = [] } = useNotifications();
-  const unreadCount = notificationRows.filter((item) => !item.read).length;
+  const { data: reminders = [] } = useReminders();
+  const pendingReminders = reminders.filter(
+    (item) => item.status === "pending" && new Date(item.scheduled_at).getTime() <= Date.now(),
+  );
+  const unreadCount = notificationRows.filter((item) => !item.read).length + pendingReminders.length;
 
   useEffect(() => {
     setNotifications(unreadCount);
@@ -128,26 +132,33 @@ function AppLayout() {
                     )}
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  {notificationRows.length === 0 ? (
+                  {notificationRows.length === 0 && pendingReminders.length === 0 ? (
                     <DropdownMenuItem disabled>No notifications yet</DropdownMenuItem>
                   ) : (
-                    notificationRows.slice(0, 6).map((item) => (
-                      <DropdownMenuItem key={item.id} className="items-start gap-3 py-2">
-                        <span
-                          className={`mt-1.5 h-1.5 w-1.5 rounded-full ${
-                            item.read ? "bg-white/20" : "bg-[color:var(--rose)]"
-                          }`}
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-sm font-medium truncate">{item.title}</span>
-                          {item.message && (
-                            <span className="block text-xs text-muted-foreground line-clamp-2">
-                              {item.message}
-                            </span>
-                          )}
-                        </span>
-                      </DropdownMenuItem>
-                    ))
+                    [...pendingReminders.map((item) => ({
+                      id: `reminder-${item.id}`,
+                      title: item.title,
+                      message: item.message,
+                      read: false,
+                    })), ...notificationRows]
+                      .slice(0, 6)
+                      .map((item) => (
+                        <DropdownMenuItem key={item.id} className="items-start gap-3 py-2">
+                          <span
+                            className={`mt-1.5 h-1.5 w-1.5 rounded-full ${
+                              item.read ? "bg-white/20" : "bg-[color:var(--rose)]"
+                            }`}
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-sm font-medium truncate">{item.title}</span>
+                            {item.message && (
+                              <span className="block text-xs text-muted-foreground line-clamp-2">
+                                {item.message}
+                              </span>
+                            )}
+                          </span>
+                        </DropdownMenuItem>
+                      ))
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>

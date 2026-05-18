@@ -39,6 +39,11 @@ function SettingsPage() {
   const [active, setActive] = useState("profile");
   const [accent, setAccent] = useState("violet");
   const [model, setModel] = useState(models[0]);
+  const [theme, setTheme] = useState<"dark" | "auto" | "light">("dark");
+  const [dailySummaryEnabled, setDailySummaryEnabled] = useState(true);
+  const [quietHoursEnabled, setQuietHoursEnabled] = useState(true);
+  const [habitRemindersEnabled, setHabitRemindersEnabled] = useState(false);
+  const [taskRemindersEnabled, setTaskRemindersEnabled] = useState(true);
 
   const preferredVoice = useAssistant((s) => s.preferredVoice);
   const setPreferredVoice = useAssistant((s) => s.setPreferredVoice);
@@ -64,6 +69,13 @@ function SettingsPage() {
         setVoiceEnabled(settings.voiceEnabled);
         setPreferredVoice(loadedVoice);
         setPersonality(loadedPersonality.id, loadedPrompt);
+        setAccent(settings.accent || "violet");
+        setTheme(settings.theme || "dark");
+        setModel(settings.model || models[0]);
+        setDailySummaryEnabled(settings.dailySummaryEnabled ?? true);
+        setQuietHoursEnabled(settings.quietHoursEnabled ?? true);
+        setHabitRemindersEnabled(settings.habitRemindersEnabled ?? false);
+        setTaskRemindersEnabled(settings.taskRemindersEnabled ?? true);
 
         if (loadedPersonality.id === "jarvis" && settings.personalityPrompt !== loadedPrompt) {
           fetch("/api/settings", {
@@ -89,6 +101,13 @@ function SettingsPage() {
     personalityPrompt?: string;
     preferredVoice?: string;
     voiceEnabled?: boolean;
+    accent?: string;
+    theme?: "dark" | "auto" | "light";
+    model?: string;
+    dailySummaryEnabled?: boolean;
+    quietHoursEnabled?: boolean;
+    habitRemindersEnabled?: boolean;
+    taskRemindersEnabled?: boolean;
   }) => {
     const currentPersonality = getPersonalityById(next.personalityId ?? personalityId);
 
@@ -96,6 +115,13 @@ function SettingsPage() {
       personalityPrompt: next.personalityPrompt ?? currentPersonality.prompt,
       preferredVoice: next.preferredVoice ?? preferredVoice,
       voiceEnabled: next.voiceEnabled ?? voiceEnabled,
+      accent: next.accent ?? accent,
+      theme: next.theme ?? theme,
+      model: next.model ?? model,
+      dailySummaryEnabled: next.dailySummaryEnabled ?? dailySummaryEnabled,
+      quietHoursEnabled: next.quietHoursEnabled ?? quietHoursEnabled,
+      habitRemindersEnabled: next.habitRemindersEnabled ?? habitRemindersEnabled,
+      taskRemindersEnabled: next.taskRemindersEnabled ?? taskRemindersEnabled,
     };
 
     try {
@@ -132,6 +158,21 @@ function SettingsPage() {
   const toggleVoice = (enabled: boolean) => {
     setVoiceEnabled(enabled);
     saveAssistantSettings({ voiceEnabled: enabled });
+  };
+
+  const selectAccent = (nextAccent: string) => {
+    setAccent(nextAccent);
+    saveAssistantSettings({ accent: nextAccent });
+  };
+
+  const selectTheme = (nextTheme: "dark" | "auto" | "light") => {
+    setTheme(nextTheme);
+    saveAssistantSettings({ theme: nextTheme });
+  };
+
+  const selectModel = (nextModel: string) => {
+    setModel(nextModel);
+    saveAssistantSettings({ model: nextModel });
   };
 
   return (
@@ -192,7 +233,7 @@ function SettingsPage() {
                 <DropdownSelect
                   value={model}
                   options={models.map((m) => ({ value: m, label: m }))}
-                  onChange={setModel}
+                  onChange={selectModel}
                 />
               </Field>
               <Field label="Personality">
@@ -227,7 +268,7 @@ function SettingsPage() {
                     <button
                       type="button"
                       key={a}
-                      onClick={() => setAccent(a)}
+                      onClick={() => selectAccent(a)}
                       aria-label={`Use ${a} accent`}
                       aria-pressed={accent === a}
                       className={`h-10 w-10 rounded-full border-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${accent === a ? "border-white scale-110" : "border-transparent"}`}
@@ -244,8 +285,9 @@ function SettingsPage() {
                     <button
                       type="button"
                       key={t}
-                      aria-pressed={t === "Dark"}
-                      className={`rounded-lg border px-4 py-2 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${t === "Dark" ? "bg-white/10 border-white/20" : "bg-white/[0.03] border-white/5 hover:bg-white/5"}`}
+                      aria-pressed={t.toLowerCase() === theme}
+                      onClick={() => selectTheme(t.toLowerCase() as "dark" | "auto" | "light")}
+                      className={`rounded-lg border px-4 py-2 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${t.toLowerCase() === theme ? "bg-white/10 border-white/20" : "bg-white/[0.03] border-white/5 hover:bg-white/5"}`}
                     >
                       {t}
                     </button>
@@ -278,13 +320,44 @@ function SettingsPage() {
           {active === "notifications" && (
             <>
               <Field label="Daily summary">
-                <Toggle defaultChecked label="Each evening at 9pm" />
+                <Toggle
+                  checked={dailySummaryEnabled}
+                  onChange={(enabled) => {
+                    setDailySummaryEnabled(enabled);
+                    saveAssistantSettings({ dailySummaryEnabled: enabled });
+                  }}
+                  label="Each evening at 9pm"
+                />
               </Field>
               <Field label="Quiet hours">
-                <Toggle defaultChecked label="No pings between 8pm and 8am" />
+                <Toggle
+                  checked={quietHoursEnabled}
+                  onChange={(enabled) => {
+                    setQuietHoursEnabled(enabled);
+                    saveAssistantSettings({ quietHoursEnabled: enabled });
+                  }}
+                  label="No pings between 8pm and 8am"
+                />
               </Field>
               <Field label="Habit reminders">
-                <Toggle label="Gentle nudges for streaks" />
+                <Toggle
+                  checked={habitRemindersEnabled}
+                  onChange={(enabled) => {
+                    setHabitRemindersEnabled(enabled);
+                    saveAssistantSettings({ habitRemindersEnabled: enabled });
+                  }}
+                  label="Gentle nudges for streaks"
+                />
+              </Field>
+              <Field label="Task reminders">
+                <Toggle
+                  checked={taskRemindersEnabled}
+                  onChange={(enabled) => {
+                    setTaskRemindersEnabled(enabled);
+                    saveAssistantSettings({ taskRemindersEnabled: enabled });
+                  }}
+                  label="Remind before due dates"
+                />
               </Field>
             </>
           )}

@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
-import { Brain, List, Orbit, Plus, Search, Trash2, X } from "lucide-react";
+import { Brain, List, Orbit, Plus, Search, Trash2, X, Pencil } from "lucide-react";
 import { useMemories } from "@/lib/hooks/use-data";
-import { useCreateMemory, useDeleteMemory } from "@/lib/hooks/use-mutations";
+import { useCreateMemory, useDeleteMemory, useUpdateMemory } from "@/lib/hooks/use-mutations";
 import { MemoryCategory } from "@/lib/types/database";
 import { OrbitalMemoryVault } from "@/components/memory/OrbitalMemoryVault";
 import { CreateItemDialog } from "@/components/CreateItemDialog";
@@ -30,12 +30,14 @@ const CATEGORIES: ("All" | MemoryCategory)[] = [
 function MemoryPage() {
   const { data: memories = [], isLoading } = useMemories();
   const createMemory = useCreateMemory();
+  const updateMemory = useUpdateMemory();
   const deleteMemory = useDeleteMemory();
 
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<"All" | MemoryCategory>("All");
   const [viewMode, setViewMode] = useState<"map" | "list">("map");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingMemoryId, setEditingMemoryId] = useState<string | null>(null);
   const [memoryToDelete, setMemoryToDelete] = useState<string | null>(null);
   const [newMemory, setNewMemory] = useState<{ content: string; category: MemoryCategory }>({
     content: "",
@@ -53,21 +55,40 @@ function MemoryPage() {
     if (!newMemory.content.trim()) return;
 
     try {
-      await createMemory.mutateAsync({
-        content: newMemory.content,
-        category: newMemory.category,
-      });
+      if (editingMemoryId) {
+        await updateMemory.mutateAsync({
+          id: editingMemoryId,
+          updates: { content: newMemory.content, category: newMemory.category },
+        });
+      } else {
+        await createMemory.mutateAsync({
+          content: newMemory.content,
+          category: newMemory.category,
+        });
+      }
       setNewMemory({ content: "", category: "Me" });
+      setEditingMemoryId(null);
       setIsDialogOpen(false);
-      toast.success("Memory added to the vault");
+      toast.success(editingMemoryId ? "Memory updated" : "Memory added to the vault");
     } catch (error) {
-      toast.error("Failed to add memory");
+      toast.error(editingMemoryId ? "Failed to update memory" : "Failed to add memory");
     }
   };
 
   const handleMemoryDialogOpenChange = (open: boolean) => {
     setIsDialogOpen(open);
-    if (!open) setNewMemory({ content: "", category: "Me" });
+    if (!open) {
+      setEditingMemoryId(null);
+      setNewMemory({ content: "", category: "Me" });
+    }
+  };
+
+  const openEditMemory = (id: string) => {
+    const memory = memories.find((item) => item.id === id);
+    if (!memory) return;
+    setEditingMemoryId(id);
+    setNewMemory({ content: memory.content, category: memory.category });
+    setIsDialogOpen(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -130,13 +151,13 @@ function MemoryPage() {
             onOpenChange={handleMemoryDialogOpenChange}
             trigger={
               <button className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm bg-gradient-to-r from-[color:var(--violet)] to-[color:var(--cyan)] text-black font-medium hover:opacity-90 transition">
-                <Plus className="h-3.5 w-3.5" /> Add memory
+                <Plus className="h-3.5 w-3.5" /> {editingMemoryId ? "Edit memory" : "Add memory"}
               </button>
             }
-            title="New Memory"
-            submitLabel="Save Memory"
+            title={editingMemoryId ? "Edit Memory" : "New Memory"}
+            submitLabel={editingMemoryId ? "Save Changes" : "Save Memory"}
             submittingLabel="Saving..."
-            isSubmitting={createMemory.isPending}
+            isSubmitting={createMemory.isPending || updateMemory.isPending}
             submitDisabled={!newMemory.content.trim()}
             onSubmit={handleAddMemory}
           >
@@ -253,6 +274,13 @@ function MemoryPage() {
                   className="absolute top-3 right-3 p-2 opacity-0 group-hover:opacity-100 transition hover:text-red-400 hover:bg-red-400/10 rounded-lg"
                 >
                   <Trash2 className="h-4 w-4" />
+                </button>
+                <button
+                  aria-label="Edit memory"
+                  onClick={() => openEditMemory(m.id)}
+                  className="absolute top-3 right-12 p-2 opacity-0 group-hover:opacity-100 transition hover:text-foreground hover:bg-white/10 rounded-lg"
+                >
+                  <Pencil className="h-4 w-4" />
                 </button>
                 <div className="flex justify-between items-start mb-3">
                   <div className="px-2 py-0.5 rounded-full bg-[color:var(--cyan)]/10 text-[color:var(--cyan)] text-[9px] font-bold uppercase tracking-widest border border-[color:var(--cyan)]/20">

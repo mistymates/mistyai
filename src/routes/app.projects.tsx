@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import { Plus, Loader2, Trash2 } from "lucide-react";
+import { Plus, Loader2, Trash2, Pencil } from "lucide-react";
 import { useProjects, useTasks } from "@/lib/hooks/use-data";
-import { useCreateProject, useDeleteProject } from "@/lib/hooks/use-mutations";
+import { useCreateProject, useDeleteProject, useUpdateProject } from "@/lib/hooks/use-mutations";
 import { useMemo, useState } from "react";
 import { CreateItemDialog } from "@/components/CreateItemDialog";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
@@ -19,8 +19,10 @@ function ProjectsPage() {
   const { data: projects = [], isLoading: projectsLoading } = useProjects();
   const { data: tasks = [], isLoading: tasksLoading } = useTasks();
   const createProject = useCreateProject();
+  const updateProject = useUpdateProject();
   const deleteProject = useDeleteProject();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [newProject, setNewProject] = useState({
     name: "",
     color: "violet",
@@ -30,10 +32,14 @@ function ProjectsPage() {
   });
 
   const kanban = useMemo(() => {
-    const todo = tasks.filter((t) => !t.done);
-    const done = tasks.filter((t) => t.done);
-    return { "To do": todo, Done: done };
-  }, [tasks]);
+    const byProject: Record<string, typeof tasks> = {};
+    for (const task of tasks) {
+      const project = projects.find((item) => item.id === task.project_id);
+      const key = project?.name || "Unassigned";
+      byProject[key] = [...(byProject[key] || []), task];
+    }
+    return byProject;
+  }, [tasks, projects]);
 
   const isLoading = projectsLoading || tasksLoading;
 
@@ -42,7 +48,24 @@ function ProjectsPage() {
 
   const handleProjectDialogOpenChange = (open: boolean) => {
     setIsDialogOpen(open);
-    if (!open) resetProjectForm();
+    if (!open) {
+      setEditingProjectId(null);
+      resetProjectForm();
+    }
+  };
+
+  const openEditProjectDialog = (id: string) => {
+    const project = projects.find((item) => item.id === id);
+    if (!project) return;
+    setEditingProjectId(id);
+    setNewProject({
+      name: project.name,
+      color: project.color || "violet",
+      progress: String(project.progress),
+      tasksCount: String(project.tasks_count),
+      tasksDone: String(project.tasks_done),
+    });
+    setIsDialogOpen(true);
   };
 
   const clampNumber = (value: string, min: number, max: number) => {
@@ -58,17 +81,31 @@ function ProjectsPage() {
 
     try {
       const tasksCount = clampNumber(newProject.tasksCount, 0, 999);
-      await createProject.mutateAsync({
-        name,
-        color: newProject.color,
-        progress: clampNumber(newProject.progress, 0, 100),
-        tasks_count: tasksCount,
-        tasks_done: clampNumber(newProject.tasksDone, 0, tasksCount),
-      });
-      toast.success("Project created");
+      if (editingProjectId) {
+        await updateProject.mutateAsync({
+          id: editingProjectId,
+          updates: {
+            name,
+            color: newProject.color,
+            progress: clampNumber(newProject.progress, 0, 100),
+            tasks_count: tasksCount,
+            tasks_done: clampNumber(newProject.tasksDone, 0, tasksCount),
+          },
+        });
+        toast.success("Project updated");
+      } else {
+        await createProject.mutateAsync({
+          name,
+          color: newProject.color,
+          progress: clampNumber(newProject.progress, 0, 100),
+          tasks_count: tasksCount,
+          tasks_done: clampNumber(newProject.tasksDone, 0, tasksCount),
+        });
+        toast.success("Project created");
+      }
       handleProjectDialogOpenChange(false);
     } catch {
-      toast.error("Failed to create project");
+      toast.error(editingProjectId ? "Failed to update project" : "Failed to create project");
     }
   };
 
@@ -105,9 +142,9 @@ function ProjectsPage() {
             </button>
           }
           title="New Project"
-          submitLabel="Save Project"
+          submitLabel={editingProjectId ? "Save Changes" : "Save Project"}
           submittingLabel="Saving..."
-          isSubmitting={createProject.isPending}
+          isSubmitting={createProject.isPending || updateProject.isPending}
           submitDisabled={!newProject.name.trim()}
           onSubmit={handleCreateProject}
         >
@@ -225,8 +262,18 @@ function ProjectsPage() {
               <h3 className="font-display font-semibold">{p.name}</h3>
               <div className="flex items-center gap-1">
                 <span className="text-xs text-muted-foreground">
-                  {p.tasks_done}/{p.tasks_count}
+                  {tasks.filter((task) => task.project_id === p.id && task.done).length}/
+                  {tasks.filter((task) => task.project_id === p.id).length || p.tasks_count}
                 </span>
+                <button
+                  type="button"
+                  onClick={() => openEditProjectDialog(p.id)}
+                  className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground opacity-0 transition hover:bg-white/10 hover:text-foreground group-hover:opacity-100"
+                  aria-label={`Edit project ${p.name}`}
+                  title="Edit project"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
                 <DeleteConfirmDialog
                   title="Delete project?"
                   description={`Delete "${p.name}"? This cannot be undone.`}
@@ -286,7 +333,7 @@ function ProjectsPage() {
                   >
                     {it.title}
                     <div className="mt-2 text-[10px] uppercase tracking-wider text-muted-foreground">
-                      {it.priority} priority
+                      {it.priority} priority {it.done ? "• done" : ""}
                     </div>
                   </div>
                 ))}

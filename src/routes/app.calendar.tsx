@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Link } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import {
   Calendar as CalendarIcon,
@@ -686,17 +685,20 @@ function CalendarList({
             </>
           )}
           {item.source === "task" && (
-            <Link
-              to="/app/tasks"
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                window.location.href = `/app/tasks?editTask=${encodeURIComponent(item.id.replace(/^task:/, ""))}`;
+              }}
               className={`grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted-foreground transition hover:bg-white/10 hover:text-foreground focus:opacity-100 ${
                 alwaysShowActions ? "opacity-100" : "opacity-0 group-hover:opacity-100"
               }`}
               aria-label={`Edit task ${item.title}`}
               title="Edit in Tasks"
-              onClick={(event) => event.stopPropagation()}
             >
               <Pencil className="h-3.5 w-3.5" />
-            </Link>
+            </button>
           )}
         </div>
       ))}
