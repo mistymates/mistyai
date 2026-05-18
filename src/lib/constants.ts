@@ -24,7 +24,8 @@ export const QUOTES = [
     author: "Mahatma Gandhi",
   },
   {
-    quote: "What you do makes a difference, and you have to decide what kind of difference you want to make.",
+    quote:
+      "What you do makes a difference, and you have to decide what kind of difference you want to make.",
     author: "Jane Goodall",
   },
 ];

@@ -29,10 +29,7 @@ const GEMINI_INPUT_PER_1M_USD = envNumber("GEMINI_FLASH_INPUT_PER_1M_USD", 0.5);
 const GEMINI_OUTPUT_PER_1M_USD = envNumber("GEMINI_FLASH_OUTPUT_PER_1M_USD", 3);
 const GEMINI_EMBED_PER_1M_USD = envNumber("GEMINI_EMBEDDING_PER_1M_USD", 0.15);
 
-const ELEVEN_FLASH_TURBO_USD_PER_1M_CHARS = envNumber(
-  "ELEVEN_FLASH_TURBO_PER_1M_CHARS_USD",
-  50,
-);
+const ELEVEN_FLASH_TURBO_USD_PER_1M_CHARS = envNumber("ELEVEN_FLASH_TURBO_PER_1M_CHARS_USD", 50);
 
 function toIdr(usd: number) {
   return usd * USD_TO_IDR;
@@ -41,7 +38,8 @@ function toIdr(usd: number) {
 export function estimateGeminiLmCost(usage: LanguageModelUsage) {
   const input = usage.inputTokens ?? 0;
   const output = usage.outputTokens ?? 0;
-  const usd = (input / 1_000_000) * GEMINI_INPUT_PER_1M_USD + (output / 1_000_000) * GEMINI_OUTPUT_PER_1M_USD;
+  const usd =
+    (input / 1_000_000) * GEMINI_INPUT_PER_1M_USD + (output / 1_000_000) * GEMINI_OUTPUT_PER_1M_USD;
   return { usd, idr: toIdr(usd) };
 }
 

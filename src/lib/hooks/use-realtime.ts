@@ -4,9 +4,10 @@ import { createClient } from "@/lib/supabase/browser";
 import { useAssistant } from "@/lib/assistant-store";
 
 const supabase = createClient();
-const clientId = typeof crypto !== "undefined" && crypto.randomUUID 
-  ? crypto.randomUUID() 
-  : Math.random().toString(36).substring(2) + Date.now().toString(36);
+const clientId =
+  typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : Math.random().toString(36).substring(2) + Date.now().toString(36);
 
 export const useRealtime = () => {
   const queryClient = useQueryClient();

@@ -56,6 +56,7 @@ import { useSpotifyStatus } from "@/lib/hooks/use-spotify-status";
 import { useSpotifyPlayer } from "@/lib/spotify-player";
 import { SpotifyAuth, type SpotifyTrack } from "@/lib/spotify";
 import { QUOTES } from "@/lib/constants";
+import type { Habit, Task } from "@/lib/types/database";
 
 export const Route = createFileRoute("/app/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Misty" }] }),
@@ -81,6 +82,15 @@ type WidgetId =
   | "memorydigest";
 
 type WidgetMeta = { id: WidgetId; label: string; span: string };
+type AgendaItem = {
+  id: string;
+  title: string;
+  start_time: string;
+  end_time: string | null;
+  type: string;
+};
+type MoodDay = { day: string; date: string; mood: number };
+type WeatherSummary = { temperature?: number; city?: string };
 
 const ALL_WIDGETS: WidgetMeta[] = [
   { id: "agenda", label: "Agenda", span: "col-span-12 lg:col-span-6 row-span-2" },
@@ -249,7 +259,7 @@ function Dashboard() {
     };
   }, []);
 
-  const moodWeek = useMemo(() => {
+  const moodWeek = useMemo<MoodDay[]>(() => {
     const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const last7Days = Array.from({ length: 7 }).map((_, i) => {
       const d = new Date();
@@ -633,12 +643,12 @@ function WidgetBody({
   };
   reviewMemory?: (input: { id: string; action: "approve" | "reject" }) => void;
   reviewPending?: boolean;
-  toggleHabit?: unknown;
-  agenda?: unknown[];
-  tasks?: unknown[];
-  habits?: unknown[];
-  moodWeek?: unknown[];
-  weather?: unknown;
+  toggleHabit?: (input: { id: string; done: boolean }) => void;
+  agenda?: AgendaItem[];
+  tasks?: Task[];
+  habits?: Habit[];
+  moodWeek?: MoodDay[];
+  weather?: WeatherSummary;
   weatherLoading?: boolean;
   currentTrack?: SpotifyTrack | null;
   spotifyConnected?: boolean;

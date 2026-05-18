@@ -77,7 +77,7 @@ const dataPathWithRange = (table: string, start?: string, end?: string) => {
 };
 
 export const dataService = {
-  async getMemories(category?: MemoryCategory) {
+  async getMemories(category?: MemoryCategory | "All") {
     return memoryService.getMemories(category);
   },
 

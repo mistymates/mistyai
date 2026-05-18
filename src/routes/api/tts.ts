@@ -2,6 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import "@tanstack/react-start";
 import { jarvisVoiceId } from "@/lib/assistant-settings";
 import { estimateElevenLabsCost, persistUsageEvent } from "@/lib/ai/usage-store";
+import { jsonError, parseJsonBody } from "@/lib/api/http";
+import { ttsRequestSchema } from "@/lib/api/schemas";
+import { logger } from "@/lib/logger";
 
 let elevenCharsTotal = 0;
 let elevenCostTotalIdr = 0;
@@ -10,14 +13,9 @@ export const Route = createFileRoute("/api/tts")({
   server: {
     handlers: {
       POST: async ({ request }: { request: Request }) => {
-        const { text, voice } = (await request.json()) as {
-          text: string;
-          voice?: string;
-        };
-
-        if (!text || typeof text !== "string") {
-          return new Response("Missing text", { status: 400 });
-        }
+        const parsed = await parseJsonBody(request, ttsRequestSchema);
+        if (parsed.response) return parsed.response;
+        const { text, voice } = parsed.data;
 
         const voiceId = voice ?? "aura-2-callista-en";
         const safe = text.slice(0, 1800);
@@ -40,10 +38,10 @@ export const Route = createFileRoute("/api/tts")({
               ? voiceId
               : process.env.ELEVENLABS_VOICE_ID || "kPzsL2i3teMYv0FxEYQ6";
 
-          console.log(`ElevenLabs Request: VoiceID=${elVoiceId}`);
+          logger.info(`ElevenLabs Request: VoiceID=${elVoiceId}`);
 
           if (!elKey) {
-            return new Response("Missing ELEVENLABS_API_KEY", { status: 500 });
+            return jsonError("Missing ELEVENLABS_API_KEY", 500);
           }
 
           try {
@@ -51,7 +49,7 @@ export const Route = createFileRoute("/api/tts")({
             const cost = estimateElevenLabsCost(chars);
             elevenCharsTotal += chars;
             elevenCostTotalIdr += cost.idr;
-            console.log(
+            logger.info(
               `[API/TTS] elevenlabs usage | chars=${chars} est_idr=${cost.idr.toFixed(2)} total_chars=${elevenCharsTotal} total_idr=${elevenCostTotalIdr.toFixed(2)}`,
             );
             void persistUsageEvent({
@@ -86,7 +84,7 @@ export const Route = createFileRoute("/api/tts")({
 
             if (!elRes.ok || !elRes.body) {
               const err = await elRes.text().catch(() => "");
-              return new Response(`ElevenLabs error: ${elRes.status} ${err}`, { status: 502 });
+              return jsonError("ElevenLabs error", 502, { status: elRes.status, body: err });
             }
 
             return new Response(elRes.body, {
@@ -97,14 +95,14 @@ export const Route = createFileRoute("/api/tts")({
             });
           } catch (error) {
             console.error("ElevenLabs request failed", error);
-            return new Response("ElevenLabs request failed", { status: 502 });
+            return jsonError("ElevenLabs request failed", 502);
           }
         }
 
         // Default to Deepgram
         const dgKey = process.env.DEEPGRAM_API_KEY;
         if (!dgKey) {
-          return new Response("Missing DEEPGRAM_API_KEY", { status: 500 });
+          return jsonError("Missing DEEPGRAM_API_KEY", 500);
         }
 
         const url = new URL("https://api.deepgram.com/v1/speak");
@@ -123,7 +121,7 @@ export const Route = createFileRoute("/api/tts")({
 
           if (!dg.ok || !dg.body) {
             const err = await dg.text().catch(() => "");
-            return new Response(`Deepgram error: ${dg.status} ${err}`, { status: 502 });
+            return jsonError("Deepgram error", 502, { status: dg.status, body: err });
           }
 
           return new Response(dg.body, {
@@ -136,7 +134,7 @@ export const Route = createFileRoute("/api/tts")({
           console.error("Deepgram request failed", error);
           const message =
             error instanceof Error ? error.message : "Unknown Deepgram request failure";
-          return new Response(`Deepgram request failed: ${message}`, { status: 502 });
+          return jsonError("Deepgram request failed", 502, message);
         }
       },
     },

@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { json, jsonError, parseJsonBody } from "@/lib/api/http";
+import { dataWriteSchemas, idParamSchema } from "@/lib/api/schemas";
 
 const tableConfig = {
   tasks: { orderBy: "created_at", ascending: false },
@@ -11,19 +13,14 @@ const tableConfig = {
 
 type TableName = keyof typeof tableConfig;
 
-function json(data: unknown, init?: ResponseInit) {
-  return new Response(JSON.stringify(data), {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...init?.headers,
-    },
-  });
-}
-
 function getTable(url: URL): TableName | null {
   const table = url.searchParams.get("table");
   return table && table in tableConfig ? (table as TableName) : null;
+}
+
+function getId(url: URL): string | Response {
+  const parsed = idParamSchema.safeParse(url.searchParams.get("id"));
+  return parsed.success ? parsed.data : jsonError("Row id is required", 400);
 }
 
 export const Route = createFileRoute("/api/data")({
@@ -31,11 +28,11 @@ export const Route = createFileRoute("/api/data")({
     handlers: {
       GET: async ({ request }: { request: Request }) => {
         const supabase = createSupabaseAdminClient();
-        if (!supabase) return json({ error: "Supabase configuration missing" }, { status: 500 });
+        if (!supabase) return jsonError("Supabase configuration missing", 500);
 
         const url = new URL(request.url);
         const table = getTable(url);
-        if (!table) return json({ error: "Unsupported table" }, { status: 400 });
+        if (!table) return jsonError("Unsupported table", 400);
 
         const config = tableConfig[table];
         let query = supabase
@@ -52,35 +49,44 @@ export const Route = createFileRoute("/api/data")({
 
         const { data, error } = await query;
 
-        if (error) return json({ error: error.message }, { status: 500 });
+        if (error) return jsonError(error.message, 500);
         return json(data ?? []);
       },
       POST: async ({ request }: { request: Request }) => {
         const supabase = createSupabaseAdminClient();
-        if (!supabase) return json({ error: "Supabase configuration missing" }, { status: 500 });
+        if (!supabase) return jsonError("Supabase configuration missing", 500);
 
         const url = new URL(request.url);
         const table = getTable(url);
-        if (!table) return json({ error: "Unsupported table" }, { status: 400 });
+        if (!table) return jsonError("Unsupported table", 400);
 
-        const body = await request.json();
+        const parsed = await parseJsonBody(request, dataWriteSchemas[table]);
+        if (parsed.response) return parsed.response;
+
+        const body = parsed.data as Record<string, unknown>;
         const { data, error } = await supabase.from(table).insert(body).select().single();
 
-        if (error) return json({ error: error.message }, { status: 500 });
+        if (error) return jsonError(error.message, 500);
         return json(data);
       },
       PATCH: async ({ request }: { request: Request }) => {
         const supabase = createSupabaseAdminClient();
-        if (!supabase) return json({ error: "Supabase configuration missing" }, { status: 500 });
+        if (!supabase) return jsonError("Supabase configuration missing", 500);
 
         const url = new URL(request.url);
         const table = getTable(url);
-        const id = url.searchParams.get("id");
+        const id = getId(url);
 
-        if (!table) return json({ error: "Unsupported table" }, { status: 400 });
-        if (!id) return json({ error: "Row id is required" }, { status: 400 });
+        if (!table) return jsonError("Unsupported table", 400);
+        if (id instanceof Response) return id;
 
-        const updates = await request.json();
+        const parsed = await parseJsonBody(request, dataWriteSchemas[table]);
+        if (parsed.response) return parsed.response;
+
+        const updates = parsed.data as Record<string, unknown>;
+        if (Object.keys(updates).length === 0)
+          return jsonError("No supported fields to update", 400);
+
         const { data, error } = await supabase
           .from(table)
           .update(updates)
@@ -88,23 +94,23 @@ export const Route = createFileRoute("/api/data")({
           .select()
           .single();
 
-        if (error) return json({ error: error.message }, { status: 500 });
+        if (error) return jsonError(error.message, 500);
         return json(data);
       },
       DELETE: async ({ request }: { request: Request }) => {
         const supabase = createSupabaseAdminClient();
-        if (!supabase) return json({ error: "Supabase configuration missing" }, { status: 500 });
+        if (!supabase) return jsonError("Supabase configuration missing", 500);
 
         const url = new URL(request.url);
         const table = getTable(url);
-        const id = url.searchParams.get("id");
+        const id = getId(url);
 
-        if (!table) return json({ error: "Unsupported table" }, { status: 400 });
-        if (!id) return json({ error: "Row id is required" }, { status: 400 });
+        if (!table) return jsonError("Unsupported table", 400);
+        if (id instanceof Response) return id;
 
         const { data, error } = await supabase.from(table).delete().eq("id", id).select().single();
 
-        if (error) return json({ error: error.message }, { status: 500 });
+        if (error) return jsonError(error.message, 500);
         return json(data);
       },
     },

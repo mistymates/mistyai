@@ -10,26 +10,11 @@ type WakeWordDetector = {
   stop: () => void;
 };
 
-type SRResult = { isFinal: boolean; 0: { transcript: string } };
-type SREvent = { results: ArrayLike<SRResult> & { length: number } };
-type SR = {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  onresult: ((e: SREvent) => void) | null;
-  onend: (() => void) | null;
-  onerror: ((e: unknown) => void) | null;
-  start: () => void;
-  abort: () => void;
-};
-
 declare global {
   interface Window {
     MistyOpenWakeWord?: {
       create: (options: WakeWordOptions) => Promise<WakeWordDetector>;
     };
-    SpeechRecognition?: new () => SR;
-    webkitSpeechRecognition?: new () => SR;
   }
 }
 
@@ -98,7 +83,10 @@ class LocalOpenWakeWordDetector implements WakeWordDetector {
 
     await new Promise<void>((resolve, reject) => {
       if (!this.ws) return reject(new Error("Local OpenWakeWord socket missing"));
-      const timeout = window.setTimeout(() => reject(new Error("Local OpenWakeWord timed out")), 1200);
+      const timeout = window.setTimeout(
+        () => reject(new Error("Local OpenWakeWord timed out")),
+        1200,
+      );
       this.ws.onopen = () => {
         window.clearTimeout(timeout);
         this.ws?.send(
@@ -213,7 +201,7 @@ function floatToPcm16(input: Float32Array) {
 }
 
 class BrowserWakeWordFallback implements WakeWordDetector {
-  private recognition: SR | null = null;
+  private recognition: MistySpeechRecognition | null = null;
   private running = false;
   private lastHit = 0;
 

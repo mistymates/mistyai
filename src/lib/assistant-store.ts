@@ -18,11 +18,14 @@ export type AssistantStatus =
   | "streaming_audio"
   | "processing";
 export type MicPermission = "unknown" | "prompt" | "granted" | "denied";
+export type StartupPhase = "cold" | "booting" | "ready";
 
 type AssistantState = {
   open: boolean;
   sidePanelOpen: boolean;
   status: AssistantStatus;
+  startupPhase: StartupPhase;
+  startupReady: boolean;
   voiceEnabled: boolean;
   wakeWordEnabled: boolean;
   micLevel: number; // 0..1 for waveform
@@ -42,6 +45,8 @@ type AssistantState = {
   setSidePanelOpen: (v: boolean) => void;
   toggleSidePanel: () => void;
   setStatus: (s: AssistantStatus) => void;
+  setStartupPhase: (phase: StartupPhase) => void;
+  setStartupReady: (ready: boolean) => void;
   setVoiceEnabled: (v: boolean) => void;
   setWakeWordEnabled: (v: boolean) => void;
   setMicLevel: (n: number) => void;
@@ -64,6 +69,8 @@ export const useAssistant = create<AssistantState>()(
       open: false,
       sidePanelOpen: false,
       status: "idle",
+      startupPhase: "cold",
+      startupReady: false,
       voiceEnabled: true,
       wakeWordEnabled: false,
       micLevel: 0,
@@ -83,6 +90,8 @@ export const useAssistant = create<AssistantState>()(
       setSidePanelOpen: (v) => set({ sidePanelOpen: v }),
       toggleSidePanel: () => set((s) => ({ sidePanelOpen: !s.sidePanelOpen })),
       setStatus: (status) => set({ status }),
+      setStartupPhase: (startupPhase) => set({ startupPhase }),
+      setStartupReady: (startupReady) => set({ startupReady }),
       setVoiceEnabled: (voiceEnabled) => set({ voiceEnabled }),
       setWakeWordEnabled: (wakeWordEnabled) => set({ wakeWordEnabled }),
       setMicLevel: (micLevel) => set({ micLevel }),

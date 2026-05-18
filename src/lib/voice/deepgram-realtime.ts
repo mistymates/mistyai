@@ -1,4 +1,5 @@
 import { useAssistant } from "@/lib/assistant-store";
+import { logger } from "@/lib/logger";
 import { AudioLevelMeter } from "@/lib/voice/audio-level";
 
 type DeepgramOptions = {
@@ -45,7 +46,7 @@ export class DeepgramRealtimeTranscriber {
   constructor(private options: DeepgramOptions) {}
 
   async start() {
-    console.log("[Deepgram] Starting transcriber...");
+    logger.debug("[Deepgram] Starting transcriber...");
     this.stopped = false;
     this.finalParts = [];
 
@@ -58,7 +59,7 @@ export class DeepgramRealtimeTranscriber {
           channelCount: 1,
         },
       });
-      console.log("[Deepgram] MediaStream acquired");
+      logger.debug("[Deepgram] MediaStream acquired");
     } catch (err) {
       console.error("[Deepgram] getUserMedia failed", err);
       throw err;
@@ -70,7 +71,7 @@ export class DeepgramRealtimeTranscriber {
       await this.audioContext.resume();
     }
 
-    console.log("[Deepgram] Fetching token...");
+    logger.debug("[Deepgram] Fetching token...");
     const tokenRes = await fetch("/api/voice/deepgram-token", { method: "POST" });
     if (!tokenRes.ok) {
       const raw = (await tokenRes.text()).trim();
@@ -83,7 +84,7 @@ export class DeepgramRealtimeTranscriber {
       console.error("[Deepgram] Token response missing token field");
       throw new Error("Deepgram token response missing token");
     }
-    console.log("[Deepgram] Token acquired");
+    logger.debug("[Deepgram] Token acquired");
 
     const url = new URL("wss://api.deepgram.com/v1/listen");
     url.searchParams.set("model", "nova-2");
@@ -96,14 +97,14 @@ export class DeepgramRealtimeTranscriber {
     url.searchParams.set("vad_events", "true");
     url.searchParams.set("endpointing", "1000");
 
-    console.log("[Deepgram] Connecting to WebSocket...");
+    logger.debug("[Deepgram] Connecting to WebSocket...");
     this.ws = new WebSocket(url, ["token", token]);
     this.ws.onopen = () => {
-      console.log("[Deepgram] WebSocket opened");
+      logger.debug("[Deepgram] WebSocket opened");
       this.startPcmStream();
     };
     this.ws.onmessage = (event) => {
-      console.log("[Deepgram] Message received", event.data.substring(0, 100));
+      logger.debug("[Deepgram] Message received", event.data.substring(0, 100));
       this.handleMessage(event.data);
     };
     this.ws.onerror = (err) => {
@@ -111,7 +112,7 @@ export class DeepgramRealtimeTranscriber {
       this.fail(new Error("Deepgram realtime socket failed"));
     };
     this.ws.onclose = (event) => {
-      console.log("[Deepgram] WebSocket closed", event.code, event.reason);
+      logger.debug("[Deepgram] WebSocket closed", event.code, event.reason);
       const status = useAssistant.getState().status;
       if (!this.stopped && (status === "connecting" || status === "listening")) this.finish();
     };
@@ -159,7 +160,7 @@ export class DeepgramRealtimeTranscriber {
     this.silentOutput.connect(this.audioContext.destination);
     this.armNoSpeechTimer();
     this.options.onReady?.();
-    console.log("[Deepgram] PCM audio stream started", this.audioContext.sampleRate);
+    logger.debug("[Deepgram] PCM audio stream started", this.audioContext.sampleRate);
   }
 
   private floatToLinear16(input: Float32Array) {

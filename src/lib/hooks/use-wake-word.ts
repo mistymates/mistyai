@@ -1,27 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-
-// Add global types for SpeechRecognition
-interface SpeechRecognitionEvent {
-  resultIndex: number;
-  results: {
-    [key: number]: {
-      [key: number]: {
-        transcript: string;
-      };
-    };
-  };
-}
-
-interface SpeechRecognitionErrorEvent {
-  error: string;
-}
-
-declare global {
-  interface Window {
-    SpeechRecognition: new () => unknown;
-    webkitSpeechRecognition: new () => unknown;
-  }
-}
+import { logger } from "@/lib/logger";
 
 export function useWakeWord(onWake: () => void) {
   const [isListening, setIsListening] = useState(false);
@@ -45,7 +23,7 @@ export function useWakeWord(onWake: () => void) {
     recognition.continuous = true;
     recognition.interimResults = true;
 
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
+    recognition.onresult = (event) => {
       if (!isActive) return;
       const current = event.resultIndex;
       const transcript = event.results[current][0].transcript.toLowerCase();
@@ -55,7 +33,7 @@ export function useWakeWord(onWake: () => void) {
         transcript.includes("mystic") ||
         transcript.includes("mysti")
       ) {
-        console.log("Wake word detected:", transcript);
+        logger.debug("Wake word detected:", transcript);
         isActive = false;
         recognition.abort();
         setIsListening(false);
@@ -63,8 +41,8 @@ export function useWakeWord(onWake: () => void) {
       }
     };
 
-    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      console.log("Speech recognition error", event.error);
+    recognition.onerror = (event) => {
+      logger.debug("Speech recognition error", event.error);
       if (event.error === "not-allowed") {
         isActive = false;
         setIsListening(false);

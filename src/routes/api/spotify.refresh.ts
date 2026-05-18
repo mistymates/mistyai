@@ -1,24 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-
-function jsonError(error: string, status: number, detail?: string) {
-  return new Response(JSON.stringify({ error, detail }), {
-    status,
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-}
+import { json, jsonError, parseJsonBody } from "@/lib/api/http";
+import { spotifyRefreshRequestSchema } from "@/lib/api/schemas";
 
 export const Route = createFileRoute("/api/spotify/refresh")({
   server: {
     handlers: {
       POST: async ({ request }: { request: Request }) => {
         try {
-          const { refresh_token } = (await request.json()) as { refresh_token?: string };
-
-          if (!refresh_token) {
-            return jsonError("Missing Spotify refresh token", 400);
-          }
+          const parsed = await parseJsonBody(request, spotifyRefreshRequestSchema);
+          if (parsed.response) return parsed.response;
+          const { refresh_token } = parsed.data;
 
           const clientId = process.env.VITE_SPOTIFY_CLIENT_ID || process.env.SPOTIFY_CLIENT_ID;
           if (!clientId) {
@@ -45,11 +36,7 @@ export const Route = createFileRoute("/api/spotify/refresh")({
 
           const tokenData = await refreshResponse.json();
 
-          return new Response(JSON.stringify(tokenData), {
-            headers: {
-              "Content-Type": "application/json",
-            },
-          });
+          return json(tokenData);
         } catch (error) {
           console.error("Spotify token refresh error:", error);
           return jsonError(

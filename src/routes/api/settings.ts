@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { defaultPersonality, getPersonalityByPrompt } from "@/lib/assistant-settings";
+import { json, jsonError, parseJsonBody } from "@/lib/api/http";
+import { assistantSettingsPatchSchema } from "@/lib/api/schemas";
 
 type AssistantSettingsRow = {
   id: string;
@@ -8,16 +10,6 @@ type AssistantSettingsRow = {
   preferred_voice: string | null;
   personality_prompt: string | null;
 };
-
-function json(data: unknown, init?: ResponseInit) {
-  return new Response(JSON.stringify(data), {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...init?.headers,
-    },
-  });
-}
 
 function toClientSettings(row: AssistantSettingsRow | null) {
   const personality = getPersonalityByPrompt(row?.personality_prompt);
@@ -35,7 +27,7 @@ export const Route = createFileRoute("/api/settings")({
     handlers: {
       GET: async () => {
         const supabase = createSupabaseAdminClient();
-        if (!supabase) return json({ error: "Supabase configuration missing" }, { status: 500 });
+        if (!supabase) return jsonError("Supabase configuration missing", 500);
 
         const { data, error } = await supabase
           .from("assistant_settings")
@@ -44,21 +36,31 @@ export const Route = createFileRoute("/api/settings")({
           .limit(1)
           .maybeSingle();
 
-        if (error) return json({ error: error.message }, { status: 500 });
+        if (error) return jsonError(error.message, 500);
 
         return json(toClientSettings(data));
       },
       PATCH: async ({ request }: { request: Request }) => {
         const supabase = createSupabaseAdminClient();
-        if (!supabase) return json({ error: "Supabase configuration missing" }, { status: 500 });
+        if (!supabase) return jsonError("Supabase configuration missing", 500);
 
-        const body = await request.json();
-        const updates = {
-          voice_enabled: body.voiceEnabled,
-          preferred_voice: body.preferredVoice,
-          personality_prompt: body.personalityPrompt,
+        const parsed = await parseJsonBody(request, assistantSettingsPatchSchema);
+        if (parsed.response) return parsed.response;
+
+        const body = parsed.data;
+        const updates: Record<string, unknown> = {
           updated_at: new Date().toISOString(),
         };
+
+        if (body.voiceEnabled !== undefined) updates.voice_enabled = body.voiceEnabled;
+        if (body.preferredVoice !== undefined) updates.preferred_voice = body.preferredVoice;
+        if (body.personalityPrompt !== undefined) {
+          updates.personality_prompt = body.personalityPrompt;
+        }
+
+        if (Object.keys(updates).length === 1) {
+          return jsonError("No supported settings fields to update", 400);
+        }
 
         const { data: existing, error: readError } = await supabase
           .from("assistant_settings")
@@ -67,7 +69,7 @@ export const Route = createFileRoute("/api/settings")({
           .limit(1)
           .maybeSingle();
 
-        if (readError) return json({ error: readError.message }, { status: 500 });
+        if (readError) return jsonError(readError.message, 500);
 
         const query = existing?.id
           ? supabase
@@ -83,7 +85,7 @@ export const Route = createFileRoute("/api/settings")({
               .single();
 
         const { data, error } = await query;
-        if (error) return json({ error: error.message }, { status: 500 });
+        if (error) return jsonError(error.message, 500);
 
         return json(toClientSettings(data));
       },

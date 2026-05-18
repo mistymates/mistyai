@@ -1,7 +1,11 @@
 node_modules
+local-voice/.venv
 dist
 .output
 .vinxi
+.tanstack
+.wrangler
+src-tauri/target
 pnpm-lock.yaml
 package-lock.json
 bun.lock

@@ -1,16 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
-
-function json(data: unknown, init?: ResponseInit) {
-  return new Response(JSON.stringify(data), {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...init?.headers,
-    },
-  });
-}
+import { json, jsonError, parseJsonBody } from "@/lib/api/http";
+import { voiceSessionPatchSchema } from "@/lib/api/schemas";
 
 function getSupabase() {
   const supabaseUrl = process.env.VITE_SUPABASE_URL;
@@ -40,12 +32,14 @@ export const Route = createFileRoute("/api/voice/session")({
           .select()
           .single();
 
-        if (error) return json({ error: error.message }, { status: 500 });
+        if (error) return jsonError(error.message, 500);
 
         return json(data);
       },
       PATCH: async ({ request }: { request: Request }) => {
-        const { sessionId, status } = await request.json();
+        const parsed = await parseJsonBody(request, voiceSessionPatchSchema);
+        if (parsed.response) return parsed.response;
+        const { sessionId, status } = parsed.data;
 
         const supabase = getSupabase();
         if (!supabase) return json({ success: true, mode: "local" });
@@ -55,7 +49,7 @@ export const Route = createFileRoute("/api/voice/session")({
           .update({ status, end_time: status === "ended" ? new Date().toISOString() : null })
           .eq("id", sessionId);
 
-        if (error) return json({ error: error.message }, { status: 500 });
+        if (error) return jsonError(error.message, 500);
 
         return json({ success: true });
       },

@@ -8,9 +8,9 @@ export const memoryService = {
   /**
    * Fetch all memories with advanced sorting
    */
-  async getMemories(category?: MemoryCategory) {
+  async getMemories(category?: MemoryCategory | "All") {
     const params = new URLSearchParams();
-    if (category && category !== ("All" as any)) params.set("category", category);
+    if (category && category !== "All") params.set("category", category);
 
     const response = await fetch(`/api/memory${params.size ? `?${params}` : ""}`);
     if (!response.ok) {

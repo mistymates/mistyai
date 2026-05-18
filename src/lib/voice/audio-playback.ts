@@ -2,10 +2,7 @@ import { jarvisVoiceId } from "@/lib/assistant-settings";
 import { useAssistant } from "@/lib/assistant-store";
 import { AudioLevelMeter } from "@/lib/voice/audio-level";
 
-const ACK_PATHS = Array.from(
-  { length: 16 },
-  (_, index) => `/audio/assistant/ack-${index + 1}.mp3`,
-);
+const ACK_PATHS = Array.from({ length: 16 }, (_, index) => `/audio/assistant/ack-${index + 1}.mp3`);
 
 type ManagedAudio = {
   stop: () => void;
@@ -32,7 +29,9 @@ export class AssistantAudioManager {
 
   playAck() {
     if (!this.ackAudios.length) this.preloadAcks();
-    const choices = this.ackAudios.filter((audio) => audio.readyState >= HTMLMediaElement.HAVE_METADATA);
+    const choices = this.ackAudios.filter(
+      (audio) => audio.readyState >= HTMLMediaElement.HAVE_METADATA,
+    );
     const audio = choices[Math.floor(Math.random() * choices.length)] ?? this.ackAudios[0];
     if (!audio) return;
 
@@ -94,7 +93,10 @@ export class AssistantAudioManager {
     return { stop: () => this.stopAll() };
   }
 
-  private async playStreamingResponse(response: Response, contentType: string): Promise<ManagedAudio> {
+  private async playStreamingResponse(
+    response: Response,
+    contentType: string,
+  ): Promise<ManagedAudio> {
     const mediaSource = new MediaSource();
     const url = URL.createObjectURL(mediaSource);
     this.objectUrls.add(url);
@@ -105,7 +107,7 @@ export class AssistantAudioManager {
     this.startSpeakingMeter(audio);
 
     const reader = response.body!.getReader();
-    const queue: Uint8Array[] = [];
+    const queue: Uint8Array<ArrayBuffer>[] = [];
     let sourceBuffer: SourceBuffer | null = null;
     let streamDone = false;
     let stopped = false;
@@ -136,7 +138,7 @@ export class AssistantAudioManager {
             const { done, value } = await reader.read();
             if (done) break;
             if (value) {
-              queue.push(value);
+              queue.push(new Uint8Array(value));
               pump();
             }
           }

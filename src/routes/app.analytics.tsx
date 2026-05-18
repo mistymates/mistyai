@@ -37,7 +37,9 @@ function AnalyticsPage() {
   const transactionNet = transactions.reduce((sum, item) => sum + item.amount, 0);
   const moodValues = moodWeek.map((d) => d.mood).filter((m): m is number => m !== null);
   const moodAverage =
-    moodValues.length > 0 ? (moodValues.reduce((sum, value) => sum + value, 0) / moodValues.length).toFixed(1) : null;
+    moodValues.length > 0
+      ? (moodValues.reduce((sum, value) => sum + value, 0) / moodValues.length).toFixed(1)
+      : null;
 
   const stats = [
     {
@@ -154,7 +156,9 @@ function AnalyticsPage() {
           {transactions.length > 0 && (
             <div className="mt-4 text-xs text-muted-foreground">
               Net total:{" "}
-              <span className={transactionNet >= 0 ? "text-[color:var(--mint)]" : "text-foreground"}>
+              <span
+                className={transactionNet >= 0 ? "text-[color:var(--mint)]" : "text-foreground"}
+              >
                 {transactionNet >= 0 ? "+" : ""}
                 {transactionNet.toFixed(2)}
               </span>

@@ -74,20 +74,14 @@ export interface JournalEntry {
   updated_at: string;
 }
 
-export type MemoryCategory =
-  | "Me"
-  | "People"
-  | "Preferences"
-  | "Goals"
-  | "Health"
-  | "Relationships";
+export type MemoryCategory = "Me" | "People" | "Preferences" | "Goals" | "Health" | "Relationships";
 
 export interface Memory {
   id: string;
   content: string;
   category: MemoryCategory;
   importance: number; // 1-5
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   last_accessed_at: string;
   access_count: number;
   created_at: string;

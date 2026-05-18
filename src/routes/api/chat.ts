@@ -1,11 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import "@tanstack/react-start";
-import { convertToModelMessages, streamText, embed, generateText, type UIMessage } from "ai";
+import { convertToModelMessages, streamText, embed, generateObject, type UIMessage } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { z } from "zod";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { toMemoryEmbedding } from "@/lib/ai/embeddings";
 import { logEmbeddingUsage, logLanguageModelUsage } from "@/lib/ai/token-usage";
 import { defaultPersonality } from "@/lib/assistant-settings";
+import { jsonError, parseJsonBody } from "@/lib/api/http";
+import { chatRequestSchema } from "@/lib/api/schemas";
+import { logger } from "@/lib/logger";
 
 const LOW_VALUE_MEMORY_MESSAGES = new Set([
   "ok",
@@ -238,13 +242,29 @@ function isShortCommandLike(text: string) {
   return commandStarters.some((prefix) => normalized.startsWith(prefix)) && tokens.length <= 12;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function extractMemory(text: string, google: any) {
+const extractedMemorySchema = z.object({
+  is_memory: z.boolean(),
+  category: z.enum(["Me", "People", "Preferences", "Goals", "Health", "Relationships"]).optional(),
+  content: z.string().max(4000).optional(),
+  metadata: z.record(z.string(), z.unknown()).default({}),
+  importance: z.number().min(1).max(5).optional(),
+});
+
+type ExtractedMemory = z.infer<typeof extractedMemorySchema>;
+type GoogleProvider = ReturnType<typeof createGoogleGenerativeAI>;
+type MatchedMemory = {
+  id: string;
+  content: string;
+  category: string;
+};
+
+async function extractMemory(text: string, google: GoogleProvider): Promise<ExtractedMemory> {
   try {
     const modelName =
       process.env.GEMINI_MODEL || process.env.VITE_GEMINI_MODEL || "gemini-3-flash-preview";
-    const result = await generateText({
+    const result = await generateObject({
       model: google(modelName),
+      schema: extractedMemorySchema,
       prompt: `Analyze this message for long-term facts about the user.
 Categories: Me, People, Preferences, Goals, Health, Relationships.
 Output JSON ONLY: { "is_memory": boolean, "category": string, "content": string, "metadata": {}, "importance": number }
@@ -252,14 +272,13 @@ Importance is a scale of 1-5 (1: trivial, 5: life-changing).
 Do NOT include markdown code blocks, output only raw JSON.
 
 User message: "${text}"`,
-      responseFormat: { type: "json_object" },
     });
-    logLanguageModelUsage("[API/Chat] Extract memory", result.totalUsage, { model: modelName });
+    logLanguageModelUsage("[API/Chat] Extract memory", result.usage, { model: modelName });
 
-    return JSON.parse(result.text.trim());
+    return result.object;
   } catch (e) {
     console.error("Memory extraction failed:", e);
-    return { is_memory: false };
+    return { is_memory: false, metadata: {} };
   }
 }
 
@@ -286,16 +305,14 @@ export const Route = createFileRoute("/api/chat")({
   server: {
     handlers: {
       POST: async ({ request }: { request: Request }) => {
-        const { messages, system, personalityPrompt } = (await request.json()) as {
-          messages: UIMessage[];
-          system?: string;
-          personalityPrompt?: string;
-        };
+        const parsed = await parseJsonBody(request, chatRequestSchema);
+        if (parsed.response) return parsed.response;
+        const { messages, system, personalityPrompt } = parsed.data;
 
         const geminiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
 
         if (!geminiKey) {
-          return new Response("Missing GEMINI_API_KEY", { status: 500 });
+          return jsonError("Missing GEMINI_API_KEY", 500);
         }
 
         const google = createGoogleGenerativeAI({ apiKey: geminiKey });
@@ -311,9 +328,7 @@ export const Route = createFileRoute("/api/chat")({
             if (!supabase) throw new Error("Supabase configuration missing");
 
             const embeddingResult = await embed({
-              model: google.textEmbeddingModel("gemini-embedding-2", {
-                outputDimensionality: 768,
-              }),
+              model: google.embedding("gemini-embedding-2"),
               value: userText,
             });
             const { embedding: rawEmbedding } = embeddingResult;
@@ -330,14 +345,14 @@ export const Route = createFileRoute("/api/chat")({
 
             if (matchedMemories && matchedMemories.length > 0) {
               // Update access stats in background
-              matchedMemories.forEach((m: { id: string }) => {
+              (matchedMemories as MatchedMemory[]).forEach((m) => {
                 supabase.rpc("mark_memory_accessed", { memory_id: m.id }).then();
               });
 
               relevantMemories =
                 "\n\nRelevant past memories (prioritized by importance and recency):\n" +
-                matchedMemories
-                  .map((m: { content: string; category: string }) => `[${m.category}] ${m.content}`)
+                (matchedMemories as MatchedMemory[])
+                  .map((m) => `[${m.category}] ${m.content}`)
                   .join("\n");
             }
 
@@ -345,12 +360,10 @@ export const Route = createFileRoute("/api/chat")({
             // Skip low-signal replies to reduce token spend.
             if (!shouldSkipMemoryExtraction(userText)) {
               extractMemory(userText, google).then(async (memoryData) => {
-                if (memoryData && memoryData.is_memory) {
+                if (memoryData?.is_memory && memoryData.content && memoryData.category) {
                   try {
                     const memoryEmbeddingResult = await embed({
-                      model: google.textEmbeddingModel("gemini-embedding-2", {
-                        outputDimensionality: 768,
-                      }),
+                      model: google.embedding("gemini-embedding-2"),
                       value: memoryData.content,
                     });
                     const { embedding: rawMemoryEmbedding } = memoryEmbeddingResult;
@@ -386,7 +399,7 @@ export const Route = createFileRoute("/api/chat")({
 
         const modelName =
           process.env.GEMINI_MODEL || process.env.VITE_GEMINI_MODEL || "gemini-3-flash-preview";
-        console.log(`[API/Chat] Using model: ${modelName}`);
+        logger.info(`[API/Chat] Using model: ${modelName}`);
 
         const googleProvider = google(modelName);
         const activePersonality = personalityPrompt || (await getSavedPersonalityPrompt());

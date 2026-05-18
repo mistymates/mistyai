@@ -4,6 +4,7 @@ import {
   estimateGeminiLmCost,
   persistUsageEvent,
 } from "@/lib/ai/usage-store";
+import { logger } from "@/lib/logger";
 
 function formatCount(value: number | undefined) {
   return value == null || Number.isNaN(value) ? "n/a" : value.toString();
@@ -55,14 +56,14 @@ export function logLanguageModelUsage(
   totals.reasoning += usage.outputTokenDetails.reasoningTokens ?? 0;
   totals.cacheRead += usage.inputTokenDetails.cacheReadTokens ?? 0;
 
-  console.log(
+  logger.info(
     `${label} tokens | input=${formatCount(usage.inputTokens)} output=${formatCount(
       usage.outputTokens,
     )} total=${formatCount(usage.totalTokens)} reasoning=${formatCount(
       usage.outputTokenDetails.reasoningTokens,
     )} cacheRead=${formatCount(usage.inputTokenDetails.cacheReadTokens)}`,
   );
-  console.log(
+  logger.info(
     `[TokenTotals/${route}] lm_input=${totals.input} lm_output=${totals.output} lm_total=${totals.total} lm_reasoning=${totals.reasoning} lm_cacheRead=${totals.cacheRead} embedding_input=${totals.embeddingInput}`,
   );
 
@@ -89,8 +90,8 @@ export function logEmbeddingUsage(
   const totals = getTotals(route);
   totals.embeddingInput += usage.tokens ?? 0;
 
-  console.log(`${label} tokens | input=${formatCount(usage.tokens)}`);
-  console.log(
+  logger.info(`${label} tokens | input=${formatCount(usage.tokens)}`);
+  logger.info(
     `[TokenTotals/${route}] lm_input=${totals.input} lm_output=${totals.output} lm_total=${totals.total} lm_reasoning=${totals.reasoning} lm_cacheRead=${totals.cacheRead} embedding_input=${totals.embeddingInput}`,
   );
 

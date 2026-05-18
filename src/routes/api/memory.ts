@@ -5,23 +5,21 @@ import { z } from "zod";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { toMemoryEmbedding } from "@/lib/ai/embeddings";
 import { logEmbeddingUsage, logLanguageModelUsage } from "@/lib/ai/token-usage";
+import { json, jsonError, parseJsonBody } from "@/lib/api/http";
+import { idParamSchema, memoryCreateSchema } from "@/lib/api/schemas";
+import { logger } from "@/lib/logger";
 
-function json(data: unknown, init?: ResponseInit) {
-  return new Response(JSON.stringify(data), {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...init?.headers,
-    },
-  });
-}
+type RelatedMemory = {
+  id: string;
+  similarity: number;
+};
 
 export const Route = createFileRoute("/api/memory")({
   server: {
     handlers: {
       GET: async ({ request }: { request: Request }) => {
         const supabase = createSupabaseAdminClient();
-        if (!supabase) return json({ error: "Supabase configuration missing" }, { status: 500 });
+        if (!supabase) return jsonError("Supabase configuration missing", 500);
 
         const url = new URL(request.url);
         const category = url.searchParams.get("category");
@@ -37,39 +35,35 @@ export const Route = createFileRoute("/api/memory")({
         }
 
         const { data, error } = await query;
-        if (error) return json({ error: error.message }, { status: 500 });
+        if (error) return jsonError(error.message, 500);
 
         return json(data ?? []);
       },
       POST: async ({ request }: { request: Request }) => {
-        const { content } = (await request.json()) as { content: string };
+        const parsed = await parseJsonBody(request, memoryCreateSchema);
+        if (parsed.response) return parsed.response;
+        const { content } = parsed.data;
 
         const geminiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
         const supabase = createSupabaseAdminClient();
 
         if (!geminiKey || !supabase) {
-          return new Response("Configuration missing", { status: 500 });
+          return jsonError("Configuration missing", 500);
         }
 
         const google = createGoogleGenerativeAI({ apiKey: geminiKey });
-        const modelName = process.env.GEMINI_MODEL || process.env.VITE_GEMINI_MODEL || "gemini-3-flash-preview";
-        console.log(`[API/Memory] Using model: ${modelName}`);
+        const modelName =
+          process.env.GEMINI_MODEL || process.env.VITE_GEMINI_MODEL || "gemini-3-flash-preview";
+        logger.info(`[API/Memory] Using model: ${modelName}`);
 
         try {
           // 1. ANALYZE AND CATEGORIZE (Structural Logic)
           const analysisResult = await generateObject({
             model: google(modelName),
             schema: z.object({
-              category: z.enum([
-                "Me",
-                "People",
-                "Preferences",
-                "Goals",
-                "Health",
-                "Relationships",
-              ]),
+              category: z.enum(["Me", "People", "Preferences", "Goals", "Health", "Relationships"]),
               importance: z.number().min(1).max(5),
-              metadata: z.record(z.any()),
+              metadata: z.record(z.string(), z.unknown()),
               links: z
                 .array(z.string())
                 .describe("List of keywords or entities to link to existing memories"),
@@ -91,9 +85,7 @@ export const Route = createFileRoute("/api/memory")({
 
           // 2. GENERATE EMBEDDING
           const embeddingResult = await embed({
-            model: google.textEmbeddingModel("gemini-embedding-2", {
-              outputDimensionality: 768,
-            }),
+            model: google.embedding("gemini-embedding-2"),
             value: content,
           });
           const { embedding: rawEmbedding } = embeddingResult;
@@ -105,17 +97,17 @@ export const Route = createFileRoute("/api/memory")({
           // 3. SAVE MEMORY
           const { data: memory, error: memoryError } = await supabase
             .from("memories")
-              .insert({
-                content,
-                category: analysis.category,
-                importance: analysis.importance,
-                metadata: {
-                  ...(analysis.metadata || {}),
-                  source: "manual",
-                  review_status: "approved",
-                },
-                embedding,
-              })
+            .insert({
+              content,
+              category: analysis.category,
+              importance: analysis.importance,
+              metadata: {
+                ...(analysis.metadata || {}),
+                source: "manual",
+                review_status: "approved",
+              },
+              embedding,
+            })
             .select()
             .single();
 
@@ -129,10 +121,11 @@ export const Route = createFileRoute("/api/memory")({
             match_count: 3,
           });
 
-          if (related && related.length > 0) {
-            const links = related
-              .filter((r: any) => r.id !== memory.id)
-              .map((r: any) => ({
+          const relatedRows = (related ?? []) as RelatedMemory[];
+          if (relatedRows.length > 0) {
+            const links = relatedRows
+              .filter((r) => r.id !== memory.id)
+              .map((r) => ({
                 source_id: memory.id,
                 target_id: r.id,
                 relationship_type: "semantically_related",
@@ -149,20 +142,20 @@ export const Route = createFileRoute("/api/memory")({
           });
         } catch (e) {
           console.error("Advanced memory processing failed", e);
-          return new Response("Internal Error", { status: 500 });
+          return jsonError("Internal Error", 500);
         }
       },
       DELETE: async ({ request }: { request: Request }) => {
         const supabase = createSupabaseAdminClient();
-        if (!supabase) return json({ error: "Supabase configuration missing" }, { status: 500 });
+        if (!supabase) return jsonError("Supabase configuration missing", 500);
 
         const url = new URL(request.url);
-        const id = url.searchParams.get("id");
+        const id = idParamSchema.safeParse(url.searchParams.get("id"));
 
-        if (!id) return json({ error: "Memory id is required" }, { status: 400 });
+        if (!id.success) return jsonError("Memory id is required", 400);
 
-        const { error } = await supabase.from("memories").delete().eq("id", id);
-        if (error) return json({ error: error.message }, { status: 500 });
+        const { error } = await supabase.from("memories").delete().eq("id", id.data);
+        if (error) return jsonError(error.message, 500);
 
         return json({ success: true });
       },

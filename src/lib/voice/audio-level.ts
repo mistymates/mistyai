@@ -5,7 +5,7 @@ export class AudioLevelMeter {
   private source: AudioNode | null = null;
   private analyser: AnalyserNode | null = null;
   private frame = 0;
-  private data: Uint8Array | null = null;
+  private data: Uint8Array<ArrayBuffer> | null = null;
   private smoothed = 0;
 
   startFromStream(stream: MediaStream, onLevel: AudioLevelCallback) {

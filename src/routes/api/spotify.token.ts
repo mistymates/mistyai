@@ -1,28 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-
-function jsonError(error: string, status: number, detail?: string) {
-  return new Response(JSON.stringify({ error, detail }), {
-    status,
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-}
+import { json, jsonError, parseJsonBody } from "@/lib/api/http";
+import { spotifyTokenRequestSchema } from "@/lib/api/schemas";
 
 export const Route = createFileRoute("/api/spotify/token")({
   server: {
     handlers: {
       POST: async ({ request }: { request: Request }) => {
         try {
-          const { code, redirectUri, codeVerifier } = (await request.json()) as {
-            code?: string;
-            redirectUri?: string;
-            codeVerifier?: string;
-          };
-
-          if (!code || !redirectUri || !codeVerifier) {
-            return jsonError("Missing Spotify authorization payload", 400);
-          }
+          const parsed = await parseJsonBody(request, spotifyTokenRequestSchema);
+          if (parsed.response) return parsed.response;
+          const { code, redirectUri, codeVerifier } = parsed.data;
 
           const clientId = process.env.VITE_SPOTIFY_CLIENT_ID || process.env.SPOTIFY_CLIENT_ID;
           if (!clientId) {
@@ -51,11 +38,7 @@ export const Route = createFileRoute("/api/spotify/token")({
 
           const tokenData = await tokenResponse.json();
 
-          return new Response(JSON.stringify(tokenData), {
-            headers: {
-              "Content-Type": "application/json",
-            },
-          });
+          return json(tokenData);
         } catch (error) {
           console.error("Spotify token exchange error:", error);
           return jsonError(

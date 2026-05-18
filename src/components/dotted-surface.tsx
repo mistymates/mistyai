@@ -21,7 +21,14 @@ const CONFIGS: Record<AssistantStatus, ParticleConfig> = {
   thinking: { wave: 0.11, audio: 0.16, focus: 0.04, brightness: 0.28, ripple: 0.2, speed: 0.2 },
   speaking: { wave: 0.1, audio: 0.28, focus: 0.04, brightness: 0.34, ripple: 0.24, speed: 0.18 },
   connecting: { wave: 0.08, audio: 0.12, focus: 0.04, brightness: 0.24, ripple: 0.12, speed: 0.16 },
-  streaming_audio: { wave: 0.1, audio: 0.26, focus: 0.04, brightness: 0.34, ripple: 0.24, speed: 0.18 },
+  streaming_audio: {
+    wave: 0.1,
+    audio: 0.26,
+    focus: 0.04,
+    brightness: 0.34,
+    ripple: 0.24,
+    speed: 0.18,
+  },
   processing: { wave: 0.1, audio: 0.16, focus: 0.05, brightness: 0.27, ripple: 0.18, speed: 0.19 },
 };
 
@@ -76,7 +83,9 @@ function colorFromOklch(input: string) {
   const match = input.match(/oklch\(\s*([\d.]+%?)\s+([\d.]+)\s+([\d.]+)/i);
   if (!match) return null;
 
-  const lightness = match[1].endsWith("%") ? Number.parseFloat(match[1]) / 100 : Number.parseFloat(match[1]);
+  const lightness = match[1].endsWith("%")
+    ? Number.parseFloat(match[1]) / 100
+    : Number.parseFloat(match[1]);
   const chroma = Number.parseFloat(match[2]);
   const hue = (Number.parseFloat(match[3]) * Math.PI) / 180;
   const a = chroma * Math.cos(hue);
@@ -124,7 +133,11 @@ export function DottedSurface({ className }: DottedSurfaceProps) {
     const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 100);
     camera.position.z = 8.5;
 
-    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "high-performance" });
+    const renderer = new THREE.WebGLRenderer({
+      alpha: true,
+      antialias: true,
+      powerPreference: "high-performance",
+    });
     renderer.setClearColor(0x000000, 0);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     host.appendChild(renderer.domElement);
@@ -199,12 +212,20 @@ export function DottedSurface({ className }: DottedSurfaceProps) {
 
     const updateThemeColors = () => {
       material.uniforms.uColorA.value = resolveCssColor("--foreground", "#f7f5ff");
-      const accentVar = statusRef.current === "speaking" ? "--primary" : statusRef.current === "listening" ? "--accent" : "--cyan";
+      const accentVar =
+        statusRef.current === "speaking"
+          ? "--primary"
+          : statusRef.current === "listening"
+            ? "--accent"
+            : "--cyan";
       material.uniforms.uColorB.value = resolveCssColor(accentVar, "#88e7ff");
     };
 
     const observer = new MutationObserver(updateThemeColors);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style"] });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class", "style"],
+    });
 
     window.addEventListener("resize", resize);
     resize();
@@ -239,11 +260,15 @@ export function DottedSurface({ className }: DottedSurfaceProps) {
         const focusPull = center * smoothFocus;
 
         positions[ix] = baseX * (1 - focusPull * 0.08);
-        positions[ix + 1] = baseY * (1 - focusPull * 0.12) + wave * smoothWave * 0.08 + ripple * 0.08 * center;
+        positions[ix + 1] =
+          baseY * (1 - focusPull * 0.12) + wave * smoothWave * 0.08 + ripple * 0.08 * center;
         positions[ix + 2] = baseZ + wave * smoothWave * 0.16 + ripple * center * 0.28;
         sizes[i] = 4 + center * 5 + smoothLevel * 3 + pulse * smoothRipple * center * 3;
         alphas[i] = Math.min(0.52, 0.06 + smoothBrightness * (0.26 + center * 0.48));
-        tones[i] = Math.min(1, 0.18 + center * 0.36 + smoothLevel * 0.12 + pulse * smoothRipple * 0.08);
+        tones[i] = Math.min(
+          1,
+          0.18 + center * 0.36 + smoothLevel * 0.12 + pulse * smoothRipple * 0.08,
+        );
       }
 
       geometry.attributes.position.needsUpdate = true;
@@ -255,7 +280,8 @@ export function DottedSurface({ className }: DottedSurfaceProps) {
       points.rotation.x = Math.sin(time * 0.11) * 0.04;
 
       if (glowRef.current) {
-        const glow = 0.08 + smoothBrightness * 0.2 + smoothLevel * 0.08 + pulse * smoothRipple * 0.04;
+        const glow =
+          0.08 + smoothBrightness * 0.2 + smoothLevel * 0.08 + pulse * smoothRipple * 0.04;
         glowRef.current.style.opacity = String(Math.min(0.34, glow));
         glowRef.current.style.transform = `translate(-50%, -50%) scale(${0.92 + smoothLevel * 0.08 + smoothRipple * pulse * 0.04})`;
       }

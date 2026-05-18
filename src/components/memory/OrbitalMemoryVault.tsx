@@ -59,10 +59,7 @@ function buildOrbitItems(memories: Memory[]): MemoryOrbitItem[] {
   return CATEGORY_ORDER.map((category) => {
     const categoryMemories = memories
       .filter((memory) => memory.category === category)
-      .sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-      );
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     const averageImportance =
       categoryMemories.length === 0
         ? 2
@@ -73,9 +70,7 @@ function buildOrbitItems(memories: Memory[]): MemoryOrbitItem[] {
       id: category,
       title: category,
       date: formatDate(categoryMemories[0]?.created_at),
-      content:
-        categoryMemories[0]?.content ??
-        `No ${category.toLowerCase()} memories saved yet.`,
+      content: categoryMemories[0]?.content ?? `No ${category.toLowerCase()} memories saved yet.`,
       icon: CATEGORY_ICONS[category] ?? Brain,
       relatedIds: CATEGORY_ORDER.filter((item) => item !== category),
       energy: Math.min(100, Math.max(20, Math.round(averageImportance * 20))),
@@ -205,9 +200,7 @@ export function OrbitalMemoryVault({
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,color-mix(in_oklch,var(--cyan)_12%,transparent),transparent_52%)]" />
       <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between gap-4 p-5">
         <div>
-          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-            Memory Map
-          </p>
+          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Memory Map</p>
           <p className="mt-1 text-sm text-muted-foreground">
             {memories.length} saved memories across {CATEGORY_ORDER.length} domains
           </p>

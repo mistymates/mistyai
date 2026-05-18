@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { generateObject } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { z } from "zod";
+import { logger } from "@/lib/logger";
 import { logLanguageModelUsage } from "@/lib/ai/token-usage";
 
 export const Route = createFileRoute("/api/insights")({
@@ -20,8 +21,9 @@ export const Route = createFileRoute("/api/insights")({
           }
 
           const google = createGoogleGenerativeAI({ apiKey: geminiKey });
-          const modelName = process.env.GEMINI_MODEL || process.env.VITE_GEMINI_MODEL || "gemini-3-flash-preview";
-          console.log(`[API/Insights] Using model: ${modelName}`);
+          const modelName =
+            process.env.GEMINI_MODEL || process.env.VITE_GEMINI_MODEL || "gemini-3-flash-preview";
+          logger.info(`[API/Insights] Using model: ${modelName}`);
 
           const model = google(modelName);
 
