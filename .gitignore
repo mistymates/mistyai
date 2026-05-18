@@ -36,7 +36,6 @@ dist-ssr
 .env.*
 !.env.example
 
-# Useless stuff (requested)
 totally-not-important.txt
 definitely-not-secrets.txt
 random-notes-about-nothing.md

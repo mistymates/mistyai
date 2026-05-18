@@ -47,7 +47,6 @@ Important variables:
 - `VITE_OPENWAKEWORD_URL` points the app at the local wake-word server. The default is `http://127.0.0.1:8765`.
 - `VITE_SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, and `VITE_SPOTIFY_REDIRECT_URI` enable Spotify OAuth and playback features.
 
-Do not commit `.env`. It contains secrets and local credentials.
 
 ## Run (Web)
 
