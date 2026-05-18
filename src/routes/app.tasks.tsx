@@ -29,6 +29,11 @@ function TasksPage() {
   }>({ title: "", priority: "medium", dueDate: "" });
 
   const groups = ["Today", "Tomorrow", "This week"];
+  const groupedTasks = groups.map((group) => ({
+    group,
+    list: tasks.filter((task: Task) => task.due === group || (!task.due && group === "Today")),
+  }));
+  const hasVisibleTasks = groupedTasks.some(({ list }) => list.length > 0);
 
   const resetTaskForm = () => setNewTask({ title: "", priority: "medium", dueDate: "" });
 
@@ -67,7 +72,7 @@ function TasksPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <header className="flex items-center justify-between">
+      <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-3xl font-semibold">Tasks</h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -78,7 +83,10 @@ function TasksPage() {
           open={isDialogOpen}
           onOpenChange={handleTaskDialogOpenChange}
           trigger={
-            <button className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm bg-gradient-to-r from-[color:var(--violet)] to-[color:var(--cyan)] text-black font-medium">
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[color:var(--violet)] to-[color:var(--cyan)] px-4 py-2 text-sm font-medium text-black transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
               <Plus className="h-3.5 w-3.5" /> New task
             </button>
           }
@@ -149,8 +157,17 @@ function TasksPage() {
         </CreateItemDialog>
       </header>
 
-      {groups.map((g, gi) => {
-        const list = tasks.filter((t: Task) => t.due === g || (!t.due && g === "Today"));
+      {!isLoading && !hasVisibleTasks && (
+        <section className="glass-card p-8 text-center">
+          <CheckCircle2 className="mx-auto mb-3 h-6 w-6 text-[color:var(--mint)]" />
+          <h2 className="font-display text-lg font-semibold">No tasks on deck.</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Create a task when something deserves your attention.
+          </p>
+        </section>
+      )}
+
+      {groupedTasks.map(({ group: g, list }, gi) => {
         if (list.length === 0) return null;
         return (
           <motion.section
@@ -170,8 +187,9 @@ function TasksPage() {
                   <button
                     type="button"
                     onClick={() => toggleTask({ id: t.id, done: !t.done })}
-                    className="shrink-0"
+                    className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     aria-label={t.done ? "Mark task incomplete" : "Mark task complete"}
+                    aria-pressed={t.done}
                   >
                     {t.done ? (
                       <CheckCircle2 className="h-4 w-4 text-[color:var(--mint)]" />
@@ -182,7 +200,8 @@ function TasksPage() {
                   <button
                     type="button"
                     onClick={() => toggleTask({ id: t.id, done: !t.done })}
-                    className={`flex-1 text-left text-sm ${t.done ? "line-through text-muted-foreground" : ""}`}
+                    className={`min-w-0 flex-1 rounded text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${t.done ? "line-through text-muted-foreground" : ""}`}
+                    aria-label={t.done ? `Mark ${t.title} incomplete` : `Mark ${t.title} complete`}
                   >
                     {t.title}
                   </button>

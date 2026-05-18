@@ -40,26 +40,47 @@ export const Route = createFileRoute("/app/chat")({
 });
 
 function ChatPage() {
-  // Bootstrap threads idempotently
-  const [threads, setThreads] = useState<Thread[]>(() => {
-    if (typeof window === "undefined") return [];
-    ensureChatThread();
-    return loadThreads();
-  });
-  const [activeId, setActiveId] = useState<string>(() => {
-    if (typeof window === "undefined") return "";
-    return ensureChatThread().id;
-  });
+  const [threads, setThreads] = useState<Thread[]>([]);
+  const [activeId, setActiveId] = useState<string>("");
+  const [isMounted, setIsMounted] = useState(false);
 
   const active = threads.find((t) => t.id === activeId) ?? threads[0];
 
+  const createChatThread = () => {
+    const thread = newThread();
+    const next = [thread, ...threads];
+    setThreads(next);
+    saveThreads(next);
+    setActiveId(thread.id);
+    saveActiveThreadId(thread.id);
+  };
+
+  const selectChatThread = (id: string) => {
+    setActiveId(id);
+    saveActiveThreadId(id);
+  };
+
+  const deleteChatThread = (id: string) => {
+    const next = threads.filter((thread) => thread.id !== id);
+    const final = next.length > 0 ? next : [newThread()];
+    setThreads(final);
+    saveThreads(final);
+    if (id === activeId) {
+      setActiveId(final[0].id);
+      saveActiveThreadId(final[0].id);
+    }
+  };
+
   useEffect(() => {
     const sync = () => {
+      ensureChatThread();
       setThreads(loadThreads());
       const savedActiveId = loadActiveThreadId();
       if (savedActiveId) setActiveId(savedActiveId);
     };
 
+    sync();
+    setIsMounted(true);
     window.addEventListener(THREADS_CHANGED_EVENT, sync);
     window.addEventListener("storage", sync);
     return () => {
@@ -69,64 +90,81 @@ function ChatPage() {
   }, []);
 
   return (
-    <div className="h-[calc(100vh-7rem)] flex gap-4 -m-4 sm:-m-6 lg:-m-8 p-4 sm:p-6 lg:p-8">
-      {/* Thread sidebar */}
-      <aside className="hidden md:flex glass-card w-64 flex-col p-3 shrink-0">
-        <button
-          onClick={() => {
-            const t = newThread();
-            const next = [t, ...threads];
-            setThreads(next);
-            saveThreads(next);
-            setActiveId(t.id);
-            saveActiveThreadId(t.id);
-          }}
-          className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg bg-gradient-to-r from-[color:var(--violet)] to-[color:var(--cyan)] text-black text-sm font-medium hover:opacity-90 transition mb-3"
-        >
-          <Plus className="h-4 w-4" /> New chat
-        </button>
-        <div className="text-xs text-muted-foreground px-2 mb-1.5">Recent</div>
-        <div className="flex-1 overflow-y-auto space-y-0.5">
-          {threads.map((t) => (
-            <div
-              key={t.id}
-              className={`group flex items-center gap-2 px-2.5 py-2 rounded-lg cursor-pointer text-sm transition ${
-                t.id === activeId
-                  ? "bg-white/10 text-foreground"
-                  : "hover:bg-white/5 text-muted-foreground"
-              }`}
-              onClick={() => {
-                setActiveId(t.id);
-                saveActiveThreadId(t.id);
-              }}
-            >
-              <MessageSquareText className="h-3.5 w-3.5 shrink-0" />
-              <span className="flex-1 truncate">{t.title}</span>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const next = threads.filter((x) => x.id !== t.id);
-                  const final = next.length > 0 ? next : [newThread()];
-                  setThreads(final);
-                  saveThreads(final);
-                  if (t.id === activeId) {
-                    setActiveId(final[0].id);
-                    saveActiveThreadId(final[0].id);
-                  }
-                }}
-                className="opacity-0 group-hover:opacity-100 hover:text-destructive transition"
-                aria-label="Delete"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          ))}
+    <div className="-m-4 flex h-[calc(100dvh-7rem)] min-h-[520px] flex-col gap-4 p-4 sm:-m-6 sm:p-6 md:flex-row lg:-m-8 lg:p-8">
+      {isMounted && (
+        <div className="glass-card flex shrink-0 items-center gap-2 p-2 md:hidden">
+          <label htmlFor="mobile-thread-select" className="sr-only">
+            Select chat thread
+          </label>
+          <select
+            id="mobile-thread-select"
+            value={active?.id ?? ""}
+            onChange={(event) => selectChatThread(event.target.value)}
+            className="min-w-0 flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="Select chat thread"
+          >
+            {threads.map((thread) => (
+              <option key={thread.id} value={thread.id} className="bg-background text-foreground">
+                {thread.title}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={createChatThread}
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="New chat"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
         </div>
-      </aside>
+      )}
+      {/* Thread sidebar */}
+      {isMounted && (
+        <aside className="hidden md:flex glass-card w-64 flex-col p-3 shrink-0">
+          <button
+            type="button"
+            onClick={createChatThread}
+            className="mb-3 flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[color:var(--violet)] to-[color:var(--cyan)] px-3 py-2 text-sm font-medium text-black transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Plus className="h-4 w-4" /> New chat
+          </button>
+          <div className="text-xs text-muted-foreground px-2 mb-1.5">Recent</div>
+          <div className="flex-1 overflow-y-auto space-y-0.5">
+            {threads.map((t) => (
+              <div
+                key={t.id}
+                className={`group flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm transition ${
+                  t.id === activeId
+                    ? "bg-white/10 text-foreground"
+                    : "hover:bg-white/5 text-muted-foreground"
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => selectChatThread(t.id)}
+                  className="flex min-w-0 flex-1 items-center gap-2 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-current={t.id === activeId ? "page" : undefined}
+                >
+                  <MessageSquareText className="h-3.5 w-3.5 shrink-0" />
+                  <span className="flex-1 truncate">{t.title}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => deleteChatThread(t.id)}
+                  className="opacity-0 transition hover:text-destructive focus:opacity-100 group-hover:opacity-100"
+                  aria-label={`Delete chat ${t.title}`}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </aside>
+      )}
 
       {/* Chat window */}
-      {active && (
+      {isMounted && active && (
         <ChatWindow
           key={active.id}
           thread={active}
@@ -184,7 +222,7 @@ function ChatWindow({ thread, onUpdate }: { thread: Thread; onUpdate: (m: UIMess
   const empty = displayMessages.length === 0;
 
   return (
-    <div className="flex-1 flex flex-col glass-card overflow-hidden min-w-0">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden glass-card min-w-0">
       <Conversation className="flex-1">
         <ConversationContent className="max-w-3xl mx-auto w-full px-4 py-6">
           {empty ? (
@@ -223,7 +261,10 @@ function ChatWindow({ thread, onUpdate }: { thread: Thread; onUpdate: (m: UIMess
                 </motion.div>
               )}
               {error && (
-                <div className="text-sm text-destructive p-3 rounded-lg bg-destructive/10">
+                <div
+                  className="text-sm text-destructive p-3 rounded-lg bg-destructive/10"
+                  role="alert"
+                >
                   Something went wrong: {error.message}
                 </div>
               )}

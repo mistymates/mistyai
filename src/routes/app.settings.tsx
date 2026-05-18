@@ -12,7 +12,7 @@ import {
 } from "@/lib/assistant-settings";
 
 export const Route = createFileRoute("/app/settings")({
-  head: () => ({ meta: [{ title: "Settings — Mistski" }] }),
+  head: () => ({ meta: [{ title: "Settings — Misty" }] }),
   component: SettingsPage,
 });
 
@@ -142,12 +142,14 @@ function SettingsPage() {
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-6">
-        <nav className="glass-card p-2 h-fit">
+        <nav className="glass-card grid h-fit grid-cols-2 gap-1 p-2 sm:grid-cols-3 md:block">
           {sections.map((s) => (
             <button
+              type="button"
               key={s.id}
               onClick={() => setActive(s.id)}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition ${
+              aria-current={active === s.id ? "page" : undefined}
+              className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                 active === s.id
                   ? "bg-white/10 text-foreground"
                   : "text-muted-foreground hover:bg-white/5"
@@ -163,7 +165,7 @@ function SettingsPage() {
           key={active}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="glass-card p-6 space-y-6"
+          className="glass-card space-y-6 p-4 sm:p-6"
         >
           {active === "profile" && (
             <>
@@ -194,11 +196,13 @@ function SettingsPage() {
                 />
               </Field>
               <Field label="Personality">
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid gap-2 sm:grid-cols-2">
                   {personalityOptions.map((p) => (
                     <button
+                      type="button"
                       key={p.id}
                       onClick={() => selectPersonality(p.id)}
+                      aria-pressed={personalityId === p.id}
                       className={`p-3 rounded-lg text-sm text-left border transition ${
                         personalityId === p.id
                           ? "bg-white/10 border-white/20"
@@ -221,10 +225,12 @@ function SettingsPage() {
                 <div className="flex gap-3">
                   {accents.map((a) => (
                     <button
+                      type="button"
                       key={a}
                       onClick={() => setAccent(a)}
-                      aria-label={a}
-                      className={`h-10 w-10 rounded-full border-2 transition ${accent === a ? "border-white scale-110" : "border-transparent"}`}
+                      aria-label={`Use ${a} accent`}
+                      aria-pressed={accent === a}
+                      className={`h-10 w-10 rounded-full border-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${accent === a ? "border-white scale-110" : "border-transparent"}`}
                       style={{
                         background: `oklch(0.78 0.18 ${a === "violet" ? 300 : a === "cyan" ? 220 : a === "rose" ? 10 : a === "mint" ? 165 : 80})`,
                       }}
@@ -236,8 +242,10 @@ function SettingsPage() {
                 <div className="flex gap-2">
                   {["Dark", "Auto", "Light"].map((t) => (
                     <button
+                      type="button"
                       key={t}
-                      className={`px-4 py-2 rounded-lg text-sm border ${t === "Dark" ? "bg-white/10 border-white/20" : "bg-white/[0.03] border-white/5"}`}
+                      aria-pressed={t === "Dark"}
+                      className={`rounded-lg border px-4 py-2 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${t === "Dark" ? "bg-white/10 border-white/20" : "bg-white/[0.03] border-white/5 hover:bg-white/5"}`}
                     >
                       {t}
                     </button>
@@ -314,7 +322,13 @@ function Toggle({
   };
 
   return (
-    <button onClick={() => setOn(!on)} className="flex items-center gap-3 group">
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      onClick={() => setOn(!on)}
+      className="group flex items-center gap-3 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
       <div
         className={`w-10 h-6 rounded-full transition relative ${on ? "bg-gradient-to-r from-[color:var(--violet)] to-[color:var(--cyan)]" : "bg-white/10"}`}
       >

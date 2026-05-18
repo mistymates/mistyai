@@ -240,16 +240,30 @@
 }
 
 .orb-image-glow {
-  filter:
-    drop-shadow(0 0 8px oklch(0.82 0.18 220 / 0.55))
+  filter: drop-shadow(0 0 8px oklch(0.82 0.18 220 / 0.55))
     drop-shadow(0 0 14px oklch(0.72 0.2 300 / 0.35));
-  transition: filter 220ms ease, transform 220ms ease;
+  transition:
+    filter 220ms ease,
+    transform 220ms ease;
   will-change: filter;
 }
 
 .group:hover .orb-image-glow {
-  filter:
-    drop-shadow(0 0 14px oklch(0.84 0.2 220 / 0.8))
+  filter: drop-shadow(0 0 14px oklch(0.84 0.2 220 / 0.8))
     drop-shadow(0 0 26px oklch(0.72 0.22 300 / 0.65))
     drop-shadow(0 0 34px oklch(0.78 0.18 260 / 0.45));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
+
+  .animate-float,
+  .animate-float-orb,
+  .animate-pulse-glow {
+    animation: none !important;
+  }
 }

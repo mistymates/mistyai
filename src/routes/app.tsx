@@ -52,12 +52,13 @@ function AppLayout() {
         <ShaderBackground />
         <SpotifyPlaybackBridge />
         <AppSidebar />
-        <SidebarInset className="relative z-10 bg-transparent">
-          <header className="sticky top-0 z-30 h-14 flex items-center gap-3 px-4 border-b border-white/5 backdrop-blur-xl bg-background/40">
+        <SidebarInset className="relative z-10 min-w-0 bg-transparent">
+          <header className="sticky top-0 z-30 flex min-h-14 flex-wrap items-center gap-2 border-b border-white/5 bg-background/40 px-3 py-2 backdrop-blur-xl sm:flex-nowrap sm:gap-3 sm:px-4">
             <SidebarTrigger />
             <button
               type="button"
               onClick={() => {
+                // Reuse the command palette shortcut so header and keyboard entry stay in sync.
                 window.dispatchEvent(
                   new KeyboardEvent("keydown", {
                     key: "k",
@@ -67,7 +68,8 @@ function AppLayout() {
                   }),
                 );
               }}
-              className="relative flex-1 max-w-md h-9 rounded-md bg-white/5 border border-white/10 hover:bg-white/[0.08] hover:border-white/20 transition flex items-center px-3 gap-2 text-left group"
+              className="group relative order-3 flex h-9 min-w-0 flex-1 basis-full items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 text-left transition hover:border-white/20 hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:order-none sm:max-w-md sm:basis-auto"
+              aria-label="Open search and command palette"
             >
               <Search className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground flex-1 truncate">
@@ -77,8 +79,9 @@ function AppLayout() {
                 ⌘K
               </kbd>
             </button>
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex min-w-0 items-center gap-1.5 sm:gap-2">
               <button
+                type="button"
                 onClick={() =>
                   window.dispatchEvent(
                     new KeyboardEvent("keydown", {
@@ -89,7 +92,8 @@ function AppLayout() {
                     }),
                   )
                 }
-                className="h-9 px-3 rounded-lg bg-gradient-to-r from-[color:var(--violet)]/20 to-[color:var(--cyan)]/20 border border-white/10 hover:border-white/20 transition flex items-center gap-1.5 text-xs"
+                className="flex h-9 items-center gap-1.5 rounded-lg border border-white/10 bg-gradient-to-r from-[color:var(--violet)]/20 to-[color:var(--cyan)]/20 px-3 text-xs transition hover:border-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Ask Misty"
               >
                 <Sparkles className="h-3.5 w-3.5 text-[color:var(--violet)]" />
                 <span className="hidden sm:inline">Ask</span>
@@ -100,6 +104,7 @@ function AppLayout() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
+                    type="button"
                     className="relative h-9 w-9 grid place-items-center rounded-lg hover:bg-white/5 transition"
                     aria-label="Open notifications"
                   >
@@ -147,9 +152,11 @@ function AppLayout() {
                 </DropdownMenuContent>
               </DropdownMenu>
               <button
+                type="button"
                 onClick={toggleSidePanel}
                 aria-label="Toggle assistant panel"
-                className={`h-9 w-9 grid place-items-center rounded-lg transition ${
+                aria-pressed={sidePanelOpen}
+                className={`grid h-9 w-9 place-items-center rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                   sidePanelOpen
                     ? "bg-white/10 text-foreground"
                     : "hover:bg-white/5 text-muted-foreground hover:text-foreground"

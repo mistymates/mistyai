@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { motion, AnimatePresence, Reorder, useDragControls } from "framer-motion";
+import { motion, AnimatePresence, Reorder } from "framer-motion";
 import { useEffect, useState, useMemo } from "react";
 import {
   Cloud,
@@ -24,7 +24,6 @@ import {
   Settings2,
   Eye,
   EyeOff,
-  GripVertical,
   Check,
   RotateCcw,
   Loader2,
@@ -57,6 +56,13 @@ import { useSpotifyPlayer } from "@/lib/spotify-player";
 import { SpotifyAuth, type SpotifyTrack } from "@/lib/spotify";
 import { QUOTES } from "@/lib/constants";
 import type { Habit, Task } from "@/lib/types/database";
+import { DashboardWidget } from "@/components/dashboard/DashboardWidget";
+import {
+  ALL_WIDGETS,
+  useDashboardLayout,
+  type WidgetId,
+  type WidgetMeta,
+} from "@/components/dashboard/dashboard-layout";
 
 export const Route = createFileRoute("/app/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Misty" }] }),
@@ -64,24 +70,6 @@ export const Route = createFileRoute("/app/dashboard")({
 });
 
 const card = "glass-card p-5";
-
-type WidgetId =
-  | "agenda"
-  | "weather"
-  | "mood"
-  | "tasks"
-  | "habits"
-  | "focus"
-  | "sleep"
-  | "water"
-  | "workout"
-  | "music"
-  | "quote"
-  | "quickai"
-  | "usage"
-  | "memorydigest";
-
-type WidgetMeta = { id: WidgetId; label: string; span: string };
 type AgendaItem = {
   id: string;
   title: string;
@@ -92,25 +80,6 @@ type AgendaItem = {
 type MoodDay = { day: string; date: string; mood: number };
 type WeatherSummary = { temperature?: number; city?: string };
 
-const ALL_WIDGETS: WidgetMeta[] = [
-  { id: "agenda", label: "Agenda", span: "col-span-12 lg:col-span-6 row-span-2" },
-  { id: "weather", label: "Weather", span: "col-span-6 lg:col-span-3" },
-  { id: "mood", label: "Mood", span: "col-span-6 lg:col-span-3" },
-  { id: "tasks", label: "Tasks", span: "col-span-12 lg:col-span-3 row-span-2" },
-  { id: "habits", label: "Habits", span: "col-span-12 lg:col-span-3 row-span-2" },
-  { id: "focus", label: "Focus", span: "col-span-6 lg:col-span-3" },
-  { id: "sleep", label: "Sleep", span: "col-span-6 lg:col-span-3" },
-  { id: "water", label: "Water", span: "col-span-6 lg:col-span-3" },
-  { id: "workout", label: "Workout", span: "col-span-6 lg:col-span-3" },
-  { id: "music", label: "Music", span: "col-span-12 lg:col-span-6" },
-  { id: "quote", label: "Quote", span: "col-span-12 lg:col-span-6" },
-  { id: "usage", label: "Token Cost", span: "col-span-12 lg:col-span-6" },
-  { id: "memorydigest", label: "Memory Digest", span: "col-span-12 lg:col-span-6 row-span-2" },
-  { id: "quickai", label: "Quick AI", span: "col-span-12" },
-];
-
-const LS_ORDER = "misty.dashboard.order";
-const LS_HIDDEN = "misty.dashboard.hidden";
 const LS_QUOTE_ROTATION = "misty.dashboard.quote-rotation";
 const QUOTE_ROTATION_MS = 30 * 60 * 1000;
 
@@ -146,46 +115,6 @@ function getInitialQuoteIndex() {
   }
 }
 
-function useLayout() {
-  const [order, setOrder] = useState<WidgetId[]>(() => {
-    if (typeof window === "undefined") return ALL_WIDGETS.map((w) => w.id);
-    try {
-      const saved = JSON.parse(localStorage.getItem(LS_ORDER) || "null") as WidgetId[] | null;
-      if (saved && Array.isArray(saved)) {
-        const known = saved.filter((id) => ALL_WIDGETS.some((w) => w.id === id));
-        const missing = ALL_WIDGETS.map((w) => w.id).filter((id) => !known.includes(id));
-        return [...known, ...missing];
-      }
-    } catch {
-      /* ignore */
-    }
-    return ALL_WIDGETS.map((w) => w.id);
-  });
-
-  const [hidden, setHidden] = useState<WidgetId[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      return JSON.parse(localStorage.getItem(LS_HIDDEN) || "[]") as WidgetId[];
-    } catch {
-      return [];
-    }
-  });
-
-  useEffect(() => {
-    localStorage.setItem(LS_ORDER, JSON.stringify(order));
-  }, [order]);
-  useEffect(() => {
-    localStorage.setItem(LS_HIDDEN, JSON.stringify(hidden));
-  }, [hidden]);
-
-  const reset = () => {
-    setOrder(ALL_WIDGETS.map((w) => w.id));
-    setHidden([]);
-  };
-
-  return { order, setOrder, hidden, setHidden, reset };
-}
-
 function Dashboard() {
   const hour = new Date().getHours();
   const greeting =
@@ -204,7 +133,7 @@ function Dashboard() {
   const wakeWordEnabled = useAssistant((s) => s.wakeWordEnabled);
   const setWakeWordEnabled = useAssistant((s) => s.setWakeWordEnabled);
   const [editing, setEditing] = useState(false);
-  const { order, setOrder, hidden, setHidden, reset } = useLayout();
+  const { order, setOrder, hidden, setHidden, reset } = useDashboardLayout();
   const { mutate: toggleHabit } = useToggleHabit();
   const {
     isConnected: spotifyConnected,
@@ -326,7 +255,9 @@ function Dashboard() {
         </div>
         <div className="flex items-center gap-2">
           <button
+            type="button"
             onClick={() => setWakeWordEnabled(!wakeWordEnabled)}
+            aria-pressed={wakeWordEnabled}
             className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-full text-xs border transition ${
               wakeWordEnabled
                 ? "bg-[color:var(--violet)]/20 border-[color:var(--violet)]/40 text-[color:var(--violet)]"
@@ -338,7 +269,9 @@ function Dashboard() {
             <span className="hidden sm:inline">Wake word</span>
           </button>
           <button
+            type="button"
             onClick={() => setEditing((v) => !v)}
+            aria-pressed={editing}
             className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-full text-xs border transition ${
               editing
                 ? "bg-white/10 border-white/20"
@@ -377,6 +310,7 @@ function Dashboard() {
                   </p>
                 </div>
                 <button
+                  type="button"
                   onClick={reset}
                   className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition"
                 >
@@ -388,10 +322,12 @@ function Dashboard() {
                   const isHidden = hidden.includes(w.id);
                   return (
                     <button
+                      type="button"
                       key={w.id}
                       onClick={() =>
                         setHidden(isHidden ? hidden.filter((id) => id !== w.id) : [...hidden, w.id])
                       }
+                      aria-pressed={!isHidden}
                       className={`text-xs px-2.5 py-1.5 rounded-lg border transition flex items-center gap-1.5 ${
                         isHidden
                           ? "bg-transparent border-white/10 text-muted-foreground"
@@ -464,6 +400,7 @@ function Dashboard() {
           </div>
           <div className="shrink-0 flex flex-col gap-2">
             <button
+              type="button"
               onClick={() => {
                 void refetchInsights();
               }}
@@ -474,6 +411,7 @@ function Dashboard() {
               Refresh briefing
             </button>
             <button
+              type="button"
               onClick={() => openAssistant(true)}
               className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full text-xs bg-white/5 hover:bg-white/10 border border-white/10 transition"
             >
@@ -491,7 +429,7 @@ function Dashboard() {
         onReorder={(next) => {
           const reordered: WidgetId[] = [];
           const nextSet = new Set(next);
-          // Walk original order, but replace visible IDs with next sequence
+          // Preserve hidden widget positions while reordering the visible subset.
           const visibleIter = next[Symbol.iterator]();
           for (const id of order) {
             if (hidden.includes(id) || !nextSet.has(id)) {
@@ -549,60 +487,6 @@ function Dashboard() {
         </div>
       )}
     </div>
-  );
-}
-
-function DashboardWidget({
-  widget,
-  index,
-  editing,
-  onHide,
-  children,
-}: {
-  widget: WidgetMeta;
-  index: number;
-  editing: boolean;
-  onHide: () => void;
-  children: React.ReactNode;
-}) {
-  const dragControls = useDragControls();
-
-  return (
-    <Reorder.Item
-      value={widget.id}
-      as="div"
-      drag={editing ? "y" : false}
-      dragListener={false}
-      dragControls={dragControls}
-      layout
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.96 }}
-      transition={{ delay: editing ? 0 : index * 0.02, duration: editing ? 0.18 : 0.28 }}
-      whileDrag={{ scale: 1.015, zIndex: 30 }}
-      className={`${widget.span} relative`}
-    >
-      {editing && (
-        <div className="absolute -top-2 -right-2 z-10 flex gap-1">
-          <button
-            onClick={onHide}
-            className="h-7 w-7 grid place-items-center rounded-full bg-background/80 border border-white/15 backdrop-blur-xl hover:bg-white/10 transition"
-            aria-label="Hide widget"
-          >
-            <EyeOff className="h-3 w-3" />
-          </button>
-          <button
-            type="button"
-            onPointerDown={(event) => dragControls.start(event)}
-            className="h-7 w-7 grid place-items-center rounded-full bg-background/80 border border-white/15 backdrop-blur-xl cursor-grab active:cursor-grabbing hover:bg-white/10 transition touch-none"
-            aria-label="Drag widget"
-          >
-            <GripVertical className="h-3 w-3 text-muted-foreground" />
-          </button>
-        </div>
-      )}
-      {children}
-    </Reorder.Item>
   );
 }
 
@@ -676,7 +560,7 @@ function WidgetBody({
               <h2 className="font-display text-lg font-semibold">Today's agenda</h2>
               <p className="text-xs text-muted-foreground">{agenda.length} things on your mind</p>
             </div>
-            <Plus className="h-4 w-4 text-muted-foreground hover:text-foreground cursor-pointer" />
+            <Plus className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           </div>
           <div className="space-y-2.5">
             {agenda.length === 0 && (
@@ -800,10 +684,13 @@ function WidgetBody({
               <div className="text-xs text-muted-foreground italic py-4">No habits tracked.</div>
             )}
             {habits.map((h) => (
-              <div
+              <button
+                type="button"
                 key={h.id}
                 onClick={() => toggleHabit?.({ id: h.id, done: !h.done })}
-                className="cursor-pointer"
+                className="w-full rounded-lg text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-pressed={h.done}
+                aria-label={h.done ? `Mark ${h.name} incomplete` : `Mark ${h.name} complete`}
               >
                 <div className="flex items-center justify-between text-sm mb-1">
                   <span className="flex items-center gap-2">
@@ -818,7 +705,7 @@ function WidgetBody({
                     style={{ width: `${Math.min(100, (h.streak / (h.target || 7)) * 100)}%` }}
                   />
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -941,7 +828,14 @@ function WidgetBody({
           </div>
 
           <div className="relative mt-4">
-            <div className="h-1.5 rounded-full bg-white/6 overflow-hidden">
+            <div
+              className="h-1.5 overflow-hidden rounded-full bg-white/6"
+              role="progressbar"
+              aria-label="Spotify playback progress"
+              aria-valuemin={0}
+              aria-valuemax={spotifyPlayer.duration || 0}
+              aria-valuenow={Math.min(spotifyPlayer.position, spotifyPlayer.duration || 0)}
+            >
               <motion.div
                 className="h-full rounded-full bg-gradient-to-r from-[color:var(--violet)] via-[color:var(--accent)] to-[color:var(--cyan)] shadow-[0_0_18px_color-mix(in_oklch,var(--accent)_40%,transparent)]"
                 animate={{ width: `${Math.max(progressRatio * 100, activeTrack ? 2 : 0)}%` }}
@@ -1123,6 +1017,7 @@ function WidgetBody({
                     </div>
                     <div className="flex gap-1.5 shrink-0">
                       <button
+                        type="button"
                         onClick={() => reviewMemory?.({ id: m.id, action: "approve" })}
                         disabled={reviewPending}
                         className="h-7 w-7 rounded-full border border-white/15 bg-white/5 hover:bg-white/10 grid place-items-center disabled:opacity-60"
@@ -1132,6 +1027,7 @@ function WidgetBody({
                         <Check className="h-3.5 w-3.5 text-[color:var(--mint)]" />
                       </button>
                       <button
+                        type="button"
                         onClick={() => reviewMemory?.({ id: m.id, action: "reject" })}
                         disabled={reviewPending}
                         className="h-7 w-7 rounded-full border border-white/15 bg-white/5 hover:bg-white/10 grid place-items-center disabled:opacity-60"
