@@ -109,3 +109,8 @@ export interface MemoryLink {
   strength: number;
   created_at: string;
 }
+
+export interface MemoryGraphResponse {
+  memories: Memory[];
+  links: MemoryLink[];
+}

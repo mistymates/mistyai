@@ -1,4 +1,4 @@
-import { Memory, MemoryCategory } from "@/lib/types/database";
+import { Memory, MemoryCategory, MemoryGraphResponse } from "@/lib/types/database";
 
 /**
  * Advanced Memory Service
@@ -19,6 +19,25 @@ export const memoryService = {
     }
 
     return (await response.json()) as Memory[];
+  },
+
+  async getMemoryGraph(params?: {
+    category?: MemoryCategory | "All";
+    currentMemoryId?: string;
+    limit?: number;
+  }) {
+    const query = new URLSearchParams({ includeLinks: "true" });
+    if (params?.category && params.category !== "All") query.set("category", params.category);
+    if (params?.currentMemoryId) query.set("currentMemoryId", params.currentMemoryId);
+    if (typeof params?.limit === "number") query.set("limit", String(params.limit));
+
+    const response = await fetch(`/api/memory?${query.toString()}`);
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(error || "Failed to fetch memory graph");
+    }
+
+    return (await response.json()) as MemoryGraphResponse;
   },
 
   /**

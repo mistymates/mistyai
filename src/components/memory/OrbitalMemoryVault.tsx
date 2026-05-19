@@ -14,7 +14,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { Memory, MemoryCategory } from "@/lib/types/database";
+import type { Memory, MemoryCategory, MemoryLink } from "@/lib/types/database";
+
+type RelatedDomain = {
+  id: MemoryCategory;
+  strength: number;
+  count: number;
+  reasons: string[];
+};
 
 type MemoryOrbitItem = {
   id: MemoryCategory;
@@ -23,6 +30,7 @@ type MemoryOrbitItem = {
   content: string;
   icon: ElementType;
   relatedIds: MemoryCategory[];
+  relatedDomains: RelatedDomain[];
   energy: number;
   count: number;
   memories: Memory[];
@@ -55,7 +63,39 @@ function formatDate(value?: string) {
   });
 }
 
-function buildOrbitItems(memories: Memory[]): MemoryOrbitItem[] {
+function buildOrbitItems(memories: Memory[], links: MemoryLink[]): MemoryOrbitItem[] {
+  const memoryById = new Map(memories.map((memory) => [memory.id, memory]));
+  const categoryLinks = new Map<MemoryCategory, Map<MemoryCategory, RelatedDomain>>();
+
+  for (const link of links) {
+    const source = memoryById.get(link.source_id);
+    const target = memoryById.get(link.target_id);
+    if (!source || !target || source.category === target.category) continue;
+
+    const updateDomain = (from: MemoryCategory, to: MemoryCategory) => {
+      const current = categoryLinks.get(from) ?? new Map<MemoryCategory, RelatedDomain>();
+      const existing = current.get(to);
+      if (existing) {
+        existing.count += 1;
+        existing.strength = Math.max(existing.strength, link.strength || 0);
+        if (link.relationship_type && !existing.reasons.includes(link.relationship_type)) {
+          existing.reasons.push(link.relationship_type);
+        }
+      } else {
+        current.set(to, {
+          id: to,
+          count: 1,
+          strength: link.strength || 0,
+          reasons: link.relationship_type ? [link.relationship_type] : [],
+        });
+      }
+      categoryLinks.set(from, current);
+    };
+
+    updateDomain(source.category, target.category);
+    updateDomain(target.category, source.category);
+  }
+
   return CATEGORY_ORDER.map((category) => {
     const categoryMemories = memories
       .filter((memory) => memory.category === category)
@@ -66,13 +106,18 @@ function buildOrbitItems(memories: Memory[]): MemoryOrbitItem[] {
         : categoryMemories.reduce((sum, memory) => sum + (memory.importance || 3), 0) /
           categoryMemories.length;
 
+    const relatedDomains = Array.from(categoryLinks.get(category)?.values() ?? [])
+      .sort((a, b) => b.strength - a.strength)
+      .slice(0, 3);
+
     return {
       id: category,
       title: category,
       date: formatDate(categoryMemories[0]?.created_at),
       content: categoryMemories[0]?.content ?? `No ${category.toLowerCase()} memories saved yet.`,
       icon: CATEGORY_ICONS[category] ?? Brain,
-      relatedIds: CATEGORY_ORDER.filter((item) => item !== category),
+      relatedIds: relatedDomains.map((domain) => domain.id),
+      relatedDomains,
       energy: Math.min(100, Math.max(20, Math.round(averageImportance * 20))),
       count: categoryMemories.length,
       memories: categoryMemories,
@@ -82,12 +127,14 @@ function buildOrbitItems(memories: Memory[]): MemoryOrbitItem[] {
 
 interface OrbitalMemoryVaultProps {
   memories: Memory[];
+  links: MemoryLink[];
   onDeleteMemory: (id: string) => void;
   onSelectCategory: (category: MemoryCategory) => void;
 }
 
 export function OrbitalMemoryVault({
   memories,
+  links,
   onDeleteMemory,
   onSelectCategory,
 }: OrbitalMemoryVaultProps) {
@@ -109,7 +156,7 @@ export function OrbitalMemoryVault({
     {} as Record<MemoryCategory, HTMLDivElement | null>,
   );
 
-  const orbitItems = useMemo(() => buildOrbitItems(memories), [memories]);
+  const orbitItems = useMemo(() => buildOrbitItems(memories, links), [memories, links]);
 
   useEffect(() => {
     const handleResize = () => setViewportWidth(window.innerWidth);
@@ -347,22 +394,39 @@ export function OrbitalMemoryVault({
                         </h4>
                       </div>
                       <div className="flex flex-wrap gap-1">
-                        {item.relatedIds.slice(0, 3).map((relatedId) => (
+                        {item.relatedDomains.length === 0 ? (
+                          <p className="text-white/45">No semantic links for this domain yet.</p>
+                        ) : (
+                          item.relatedDomains.map((related) => (
                           <Button
-                            key={relatedId}
+                            key={related.id}
                             variant="outline"
                             size="sm"
                             className="h-6 rounded-none border-white/20 bg-transparent px-2 py-0 text-xs text-white/80 transition-all hover:bg-white/10 hover:text-white"
                             onClick={(event) => {
                               event.stopPropagation();
-                              toggleItem(relatedId);
+                              toggleItem(related.id);
                             }}
                           >
-                            {relatedId}
+                            {related.id}
+                            <span className="ml-1 text-[10px] text-white/55">
+                              {related.count}x • {Math.round(related.strength * 100)}%
+                            </span>
                             <ArrowRight size={8} className="ml-1 text-white/60" />
                           </Button>
-                        ))}
+                          ))
+                        )}
                       </div>
+                      {item.relatedDomains.length > 0 && (
+                        <p className="mt-2 text-[10px] text-white/55">
+                          Reasons:{" "}
+                          {item.relatedDomains
+                            .flatMap((domain) => domain.reasons)
+                            .filter((reason, index, arr) => arr.indexOf(reason) === index)
+                            .slice(0, 4)
+                            .join(", ")}
+                        </p>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

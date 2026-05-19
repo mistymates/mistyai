@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Brain, List, Orbit, Plus, Search, Trash2, X, Pencil } from "lucide-react";
 import { useMemories } from "@/lib/hooks/use-data";
 import { useCreateMemory, useDeleteMemory, useUpdateMemory } from "@/lib/hooks/use-mutations";
 import { MemoryCategory } from "@/lib/types/database";
+import { memoryService } from "@/lib/services/memory-service";
 import { OrbitalMemoryVault } from "@/components/memory/OrbitalMemoryVault";
 import { CreateItemDialog } from "@/components/CreateItemDialog";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
@@ -29,6 +31,12 @@ const CATEGORIES: ("All" | MemoryCategory)[] = [
 
 function MemoryPage() {
   const { data: memories = [], isLoading } = useMemories();
+  const { data: memoryGraph } = useQuery({
+    queryKey: ["memory-graph"],
+    queryFn: () => memoryService.getMemoryGraph({ limit: 50 }),
+    retry: false,
+    initialData: { memories: [], links: [] },
+  });
   const createMemory = useCreateMemory();
   const updateMemory = useUpdateMemory();
   const deleteMemory = useDeleteMemory();
@@ -49,6 +57,12 @@ function MemoryPage() {
     const matchesCategory = selectedCategory === "All" || m.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
+  const filteredMemoryLinks = useMemo(() => {
+    const includedIds = new Set(filteredMemories.map((memory) => memory.id));
+    return memoryGraph.links.filter(
+      (link) => includedIds.has(link.source_id) && includedIds.has(link.target_id),
+    );
+  }, [filteredMemories, memoryGraph.links]);
 
   const handleAddMemory = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -252,6 +266,7 @@ function MemoryPage() {
       ) : viewMode === "map" ? (
         <OrbitalMemoryVault
           memories={filteredMemories}
+          links={filteredMemoryLinks}
           onDeleteMemory={handleDelete}
           onSelectCategory={setSelectedCategory}
         />

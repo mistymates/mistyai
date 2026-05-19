@@ -4,6 +4,20 @@ import { TrendingUp, Target, Wallet, Loader2 } from "lucide-react";
 import { useJournalEntries, useTasks, useTransactions } from "@/lib/hooks/use-data";
 import { useMemo } from "react";
 
+const MOOD_LABEL_SCORES: Record<string, number> = {
+  Smile: 8,
+  Meh: 5,
+  Frown: 2,
+};
+
+function normalizeMoodValue(mood: string | null): number | null {
+  if (!mood) return null;
+  // Subjective fallback mapping for legacy label-based journal moods.
+  if (mood in MOOD_LABEL_SCORES) return MOOD_LABEL_SCORES[mood];
+  const parsed = Number.parseInt(mood, 10);
+  return Number.isFinite(parsed) && parsed >= 1 && parsed <= 10 ? parsed : null;
+}
+
 export const Route = createFileRoute("/app/analytics")({
   head: () => ({ meta: [{ title: "Analytics - Misty" }] }),
   component: AnalyticsPage,
@@ -24,8 +38,8 @@ function AnalyticsPage() {
         (entry) => new Date(entry.created_at).toISOString().split("T")[0] === isoDate,
       );
       const numericMoods = dayEntries
-        .map((entry) => Number.parseInt(entry.mood ?? "", 10))
-        .filter((value) => Number.isFinite(value) && value >= 1 && value <= 10);
+        .map((entry) => normalizeMoodValue(entry.mood))
+        .filter((value): value is number => value !== null);
       const mood = numericMoods.length
         ? numericMoods.reduce((sum, value) => sum + value, 0) / numericMoods.length
         : null;

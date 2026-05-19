@@ -14,6 +14,15 @@ type RelatedMemory = {
   similarity: number;
 };
 
+type MemoryLinkRow = {
+  id: string;
+  source_id: string;
+  target_id: string;
+  relationship_type: string;
+  strength: number;
+  created_at: string;
+};
+
 const memoryUpdateSchema = z.object({
   id: idParamSchema,
   content: z.string().trim().min(1).max(4000).optional(),
@@ -32,6 +41,12 @@ export const Route = createFileRoute("/api/memory")({
 
         const url = new URL(request.url);
         const category = url.searchParams.get("category");
+        const includeLinks = url.searchParams.get("includeLinks") === "true";
+        const currentMemoryId = url.searchParams.get("currentMemoryId");
+        const limitParam = Number.parseInt(url.searchParams.get("limit") ?? "12", 10);
+        const linkLimit = Number.isFinite(limitParam)
+          ? Math.min(Math.max(limitParam, 1), 100)
+          : 12;
 
         let query = supabase
           .from("memories")
@@ -46,7 +61,29 @@ export const Route = createFileRoute("/api/memory")({
         const { data, error } = await query;
         if (error) return jsonError(error.message, 500);
 
-        return json(data ?? []);
+        const memories = data ?? [];
+        if (!includeLinks) return json(memories);
+
+        const memoryIds = memories.map((memory) => memory.id);
+        if (memoryIds.length === 0) return json({ memories, links: [] });
+
+        let linksQuery = supabase
+          .from("memory_links")
+          .select("id,source_id,target_id,relationship_type,strength,created_at")
+          .or(`source_id.in.(${memoryIds.join(",")}),target_id.in.(${memoryIds.join(",")})`)
+          .order("strength", { ascending: false });
+
+        if (currentMemoryId) {
+          linksQuery = linksQuery.or(`source_id.eq.${currentMemoryId},target_id.eq.${currentMemoryId}`);
+        }
+
+        const { data: linksData, error: linksError } = await linksQuery.limit(linkLimit);
+        if (linksError) return jsonError(linksError.message, 500);
+
+        return json({
+          memories,
+          links: (linksData ?? []) as MemoryLinkRow[],
+        });
       },
       POST: async ({ request }: { request: Request }) => {
         const parsed = await parseJsonBody(request, memoryCreateSchema);
