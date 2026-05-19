@@ -20,6 +20,7 @@ import {
 } from "@/lib/chat-storage";
 import { appendLocalMessages } from "@/lib/desktop-launcher";
 import { tryHandleSpotifyCommand } from "@/lib/spotify-commands";
+import { onAssistantIntent } from "@/lib/assistant-intents";
 
 const PAGE_HINTS: Record<string, string> = {
   "/": "the ambient Misty landing page - keep the reply calm, brief, and voice-first",
@@ -287,6 +288,16 @@ export function GlobalAssistant() {
       window.removeEventListener("misty:microphone-granted", onMicrophoneGranted);
     };
   }, [startVoice, stopListening, stopSpeaking]);
+
+  useEffect(() => {
+    return onAssistantIntent((intent) => {
+      if (intent.type !== "ask_with_prompt") return;
+      const prompt = intent.prompt.trim();
+      if (!prompt) return;
+      if (!isLanding) setOpen(true);
+      ask(prompt);
+    });
+  }, [ask, isLanding, setOpen]);
 
   if (isLanding) {
     return null;

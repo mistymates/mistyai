@@ -17,6 +17,7 @@ import { DropdownSelect } from "@/components/DropdownSelect";
 import { Input } from "@/components/ui/input";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { toast } from "sonner";
+import { onAssistantIntent } from "@/lib/assistant-intents";
 
 export const Route = createFileRoute("/app/tasks")({
   head: () => ({ meta: [{ title: "Tasks — Misty" }] }),
@@ -54,10 +55,44 @@ function TasksPage() {
     window.history.replaceState(null, "", nextUrl);
   }, [tasks]);
 
-  const groups = ["Today", "Tomorrow", "This week"];
+  useEffect(() => {
+    return onAssistantIntent((intent) => {
+      if (intent.type !== "open_task_create") return;
+      setEditingTaskId(null);
+      setNewTask({ title: "", priority: "medium", dueDate: "", dueTime: "", projectId: "none" });
+      setIsDialogOpen(true);
+    });
+  }, []);
+
+  const groups = ["Overdue", "Today", "Tomorrow", "This week", "Later", "No due date"] as const;
+
+  const toLocalDayStart = (date: Date) =>
+    new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+
+  const classifyTaskGroup = (task: Task): (typeof groups)[number] => {
+    if (!task.due_date) return "No due date";
+    const due = new Date(task.due_date);
+    if (Number.isNaN(due.getTime())) return "No due date";
+
+    const now = new Date();
+    const todayStart = toLocalDayStart(now);
+    const tomorrowStart = todayStart + 24 * 60 * 60 * 1000;
+    const dueDayStart = toLocalDayStart(due);
+
+    if (dueDayStart < todayStart) return "Overdue";
+    if (dueDayStart === todayStart) return "Today";
+    if (dueDayStart === tomorrowStart) return "Tomorrow";
+
+    const endOfWeek = new Date(now);
+    endOfWeek.setDate(now.getDate() + (7 - now.getDay()));
+    const endOfWeekStart = toLocalDayStart(endOfWeek);
+    if (dueDayStart <= endOfWeekStart) return "This week";
+    return "Later";
+  };
+
   const groupedTasks = groups.map((group) => ({
     group,
-    list: tasks.filter((task: Task) => task.due === group || (!task.due && group === "Today")),
+    list: tasks.filter((task: Task) => classifyTaskGroup(task) === group),
   }));
   const hasVisibleTasks = groupedTasks.some(({ list }) => list.length > 0);
 

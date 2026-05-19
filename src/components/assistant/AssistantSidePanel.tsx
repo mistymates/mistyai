@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { useRouterState, Link } from "@tanstack/react-router";
+import { useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   PanelRight,
   X,
@@ -15,6 +15,7 @@ import {
   ListTodo,
 } from "lucide-react";
 import { useAssistant } from "@/lib/assistant-store";
+import { dispatchAssistantIntent } from "@/lib/assistant-intents";
 import logo from "@/assets/misty-orb.png";
 
 const PAGE_SUGGESTIONS: Record<string, string[]> = {
@@ -68,11 +69,32 @@ export function AssistantSidePanel() {
   const setOpen = useAssistant((s) => s.setOpen);
   const status = useAssistant((s) => s.status);
   const route = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
 
   const suggestions = PAGE_SUGGESTIONS[route] ?? fallbackSuggestions;
 
   const triggerAssistant = () => {
     setOpen(true);
+  };
+
+  const runIntent = (intent: "open_task_create" | "open_event_create" | "search_mode") => {
+    if (intent === "open_task_create") {
+      if (route !== "/app/tasks") {
+        void navigate({ to: "/app/tasks" });
+      }
+      window.setTimeout(() => dispatchAssistantIntent({ type: "open_task_create" }), 0);
+      return;
+    }
+
+    if (intent === "open_event_create") {
+      if (route !== "/app/calendar") {
+        void navigate({ to: "/app/calendar" });
+      }
+      window.setTimeout(() => dispatchAssistantIntent({ type: "open_event_create" }), 0);
+      return;
+    }
+
+    dispatchAssistantIntent({ type: "search_mode" });
   };
 
   const recent = [...messages]
@@ -169,10 +191,14 @@ export function AssistantSidePanel() {
               <Section icon={Plus} title="Quick actions">
                 <div className="grid grid-cols-2 gap-2">
                   {[
-                    { icon: ListTodo, label: "New task", to: "/app/tasks" },
-                    { icon: CalendarPlus, label: "New event", to: "/app/calendar" },
-                    { icon: Search, label: "Find anything", action: "palette" },
-                    { icon: Sparkles, label: "Plan my day", action: "assist" },
+                    { icon: ListTodo, label: "New task", intent: "open_task_create" as const },
+                    {
+                      icon: CalendarPlus,
+                      label: "New event",
+                      intent: "open_event_create" as const,
+                    },
+                    { icon: Search, label: "Find anything", intent: "search_mode" as const },
+                    { icon: Sparkles, label: "Plan my day", action: "assist" as const },
                   ].map((a) => {
                     const Icon = a.icon;
                     const body = (
@@ -181,31 +207,17 @@ export function AssistantSidePanel() {
                         {a.label}
                       </span>
                     );
-                    if ("to" in a) {
-                      return (
-                        <Link
-                          key={a.label}
-                          to={a.to}
-                          className="p-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/5 transition"
-                        >
-                          {body}
-                        </Link>
-                      );
-                    }
                     return (
                       <button
                         key={a.label}
                         onClick={() => {
-                          if (a.action === "palette") {
-                            window.dispatchEvent(
-                              new KeyboardEvent("keydown", {
-                                key: "k",
-                                metaKey: true,
-                                ctrlKey: true,
-                                bubbles: true,
-                              }),
-                            );
-                          } else triggerAssistant();
+                          if ("intent" in a && a.intent) runIntent(a.intent);
+                          else {
+                            dispatchAssistantIntent({
+                              type: "ask_with_prompt",
+                              prompt: "Plan my day from my current tasks and calendar.",
+                            });
+                          }
                         }}
                         className="p-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/5 transition text-left"
                       >
@@ -222,7 +234,7 @@ export function AssistantSidePanel() {
                   {suggestions.map((s) => (
                     <button
                       key={s}
-                      onClick={triggerAssistant}
+                      onClick={() => dispatchAssistantIntent({ type: "ask_with_prompt", prompt: s })}
                       className="w-full text-left text-xs px-3 py-2 rounded-lg bg-white/[0.02] hover:bg-white/[0.07] border border-white/5 transition flex items-center justify-between group"
                     >
                       <span>{s}</span>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import {
@@ -27,6 +27,7 @@ import { DropdownSelect } from "@/components/DropdownSelect";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { onAssistantIntent } from "@/lib/assistant-intents";
 
 export const Route = createFileRoute("/app/calendar")({
   head: () => ({ meta: [{ title: "Calendar — Misty" }] }),
@@ -190,12 +191,19 @@ function CalendarPage() {
       })
     : "Selected day";
 
-  const openCreateDialog = (dateKey: string) => {
+  const openCreateDialog = useCallback((dateKey: string) => {
     setSelectedDate(dateKey);
     setEditingEventId(null);
     setEventForm({ title: "", time: "", type: "event" });
     setIsDialogOpen(true);
-  };
+  }, []);
+
+  useEffect(() => {
+    return onAssistantIntent((intent) => {
+      if (intent.type !== "open_event_create") return;
+      openCreateDialog(intent.dateKey || selectedDate || todayKey);
+    });
+  }, [openCreateDialog, selectedDate, todayKey]);
 
   const getLocalRowId = (itemId: string) =>
     itemId.startsWith("local:") ? itemId.slice("local:".length) : itemId;

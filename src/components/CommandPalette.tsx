@@ -39,6 +39,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { onAssistantIntent } from "@/lib/assistant-intents";
 
 const navItems = [
   { title: "Dashboard", url: "/app/dashboard", icon: LayoutDashboard },
@@ -82,6 +83,14 @@ export function CommandPalette() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  useEffect(() => {
+    return onAssistantIntent((intent) => {
+      if (intent.type === "search_mode") {
+        setOpen(true);
+      }
+    });
   }, []);
 
   const go = (url: string) => {
