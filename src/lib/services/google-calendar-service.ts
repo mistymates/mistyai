@@ -15,6 +15,13 @@ export interface GoogleCalendarEvent {
   htmlLink: string;
 }
 
+export type GoogleCalendarEventInput = {
+  summary: string;
+  description?: string | null;
+  start: { dateTime?: string; date?: string; timeZone?: string };
+  end?: { dateTime?: string; date?: string; timeZone?: string };
+};
+
 export const INDONESIA_HOLIDAYS_CALENDAR_ID = "id.indonesian#holiday@group.v.calendar.google.com";
 
 type GoogleCalendarRange = {
@@ -59,5 +66,41 @@ export const googleCalendarService = {
       ...range,
       calendarId: INDONESIA_HOLIDAYS_CALENDAR_ID,
     });
+  },
+
+  async createEvent(token: string, event: GoogleCalendarEventInput, calendarId = "primary") {
+    const response = await axios.post<GoogleCalendarEvent>(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`,
+      event,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
+    return response.data;
+  },
+
+  async updateEvent(
+    token: string,
+    eventId: string,
+    event: GoogleCalendarEventInput,
+    calendarId = "primary",
+  ) {
+    const response = await axios.patch<GoogleCalendarEvent>(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
+      event,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
+    return response.data;
+  },
+
+  async deleteEvent(token: string, eventId: string, calendarId = "primary") {
+    await axios.delete(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
   },
 };

@@ -9,6 +9,7 @@ import type {
   Memory,
   CalendarEvent,
   Reminder,
+  HealthMetric,
 } from "@/lib/types/database";
 
 export const useToggleTask = () => {
@@ -300,6 +301,35 @@ export const useUpdateReminder = () => {
   return useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: Partial<Reminder> }) =>
       dataService.updateReminder(id, updates),
+    onMutate: async ({ id, updates }) => {
+      await queryClient.cancelQueries({ queryKey: ["reminders"] });
+      const previousReminders = queryClient.getQueryData<Reminder[]>(["reminders"]);
+
+      if (previousReminders) {
+        queryClient.setQueryData<Reminder[]>(
+          ["reminders"],
+          previousReminders.map((reminder) =>
+            reminder.id === id
+              ? {
+                  ...reminder,
+                  ...updates,
+                  updated_at:
+                    typeof updates.updated_at === "string"
+                      ? updates.updated_at
+                      : reminder.updated_at,
+                }
+              : reminder,
+          ),
+        );
+      }
+
+      return { previousReminders };
+    },
+    onError: (error, variables, context) => {
+      if (context?.previousReminders) {
+        queryClient.setQueryData(["reminders"], context.previousReminders);
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["reminders"] });
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
@@ -315,6 +345,29 @@ export const useDeleteReminder = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["reminders"] });
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+};
+
+export const useCreateHealthMetric = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (metric: Partial<HealthMetric>) => dataService.createHealthMetric(metric),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["health_metrics"] });
+    },
+  });
+};
+
+export const useUpdateHealthMetric = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<HealthMetric> }) =>
+      dataService.updateHealthMetric(id, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["health_metrics"] });
     },
   });
 };

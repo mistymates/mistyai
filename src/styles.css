@@ -119,6 +119,28 @@
   /* Same as root — app is dark by default */
 }
 
+:root[data-theme="light"] {
+  --background: oklch(0.96 0.01 280);
+  --foreground: oklch(0.16 0.02 280);
+  --card: oklch(0.99 0.005 280);
+  --card-foreground: oklch(0.16 0.02 280);
+  --popover: oklch(0.99 0.005 280);
+  --popover-foreground: oklch(0.16 0.02 280);
+  --secondary: oklch(0.9 0.02 280);
+  --secondary-foreground: oklch(0.16 0.02 280);
+  --muted: oklch(0.9 0.02 280);
+  --muted-foreground: oklch(0.46 0.03 280);
+  --border: oklch(0 0 0 / 10%);
+  --input: oklch(0 0 0 / 12%);
+  --glass: oklch(1 0 0 / 58%);
+  --glass-border: oklch(0 0 0 / 10%);
+  --sidebar: oklch(0.98 0.006 280);
+  --sidebar-foreground: oklch(0.2 0.02 280);
+  --sidebar-accent: oklch(0.92 0.015 280);
+  --sidebar-accent-foreground: oklch(0.16 0.02 280);
+  --shadow-soft: 0 10px 40px -18px oklch(0 0 0 / 0.28);
+}
+
 @layer base {
   * {
     border-color: var(--color-border);

@@ -50,12 +50,13 @@ import {
   useLiveInsights,
   useUsageSummary,
   useDailyMemoryDigest,
+  useHealthMetrics,
 } from "@/lib/hooks/use-data";
 import { useSpotifyStatus } from "@/lib/hooks/use-spotify-status";
 import { useSpotifyPlayer } from "@/lib/spotify-player";
 import { SpotifyAuth, type SpotifyTrack } from "@/lib/spotify";
 import { QUOTES } from "@/lib/constants";
-import type { Habit, Task } from "@/lib/types/database";
+import type { Habit, HealthMetric, Task } from "@/lib/types/database";
 import { DashboardWidget } from "@/components/dashboard/DashboardWidget";
 import {
   ALL_WIDGETS,
@@ -154,6 +155,7 @@ function Dashboard() {
   } = useLiveInsights(false);
   const { data: usageSummary } = useUsageSummary();
   const { data: memoryDigest } = useDailyMemoryDigest();
+  const { data: healthMetrics = [] } = useHealthMetrics();
   const { mutate: reviewMemory, isPending: reviewPending } = useReviewMemory();
 
   const isLoading = tasksLoading || habitsLoading || journalLoading || agendaLoading;
@@ -472,6 +474,7 @@ function Dashboard() {
                 currentTrack={currentTrack}
                 spotifyConnected={spotifyConnected}
                 spotifyLoading={spotifyLoading}
+                healthMetrics={healthMetrics}
               />
             </DashboardWidget>
           ))}
@@ -508,6 +511,7 @@ function WidgetBody({
   currentTrack,
   spotifyConnected,
   spotifyLoading,
+  healthMetrics = [],
 }: {
   id: WidgetId;
   quote: { quote: string; author: string };
@@ -538,6 +542,7 @@ function WidgetBody({
   currentTrack?: SpotifyTrack | null;
   spotifyConnected?: boolean;
   spotifyLoading?: boolean;
+  healthMetrics?: HealthMetric[];
 }) {
   const idr = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 });
   const spotifyPlayer = useSpotifyPlayer();
@@ -556,6 +561,12 @@ function WidgetBody({
     `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
       date.getDate(),
     ).padStart(2, "0")}`;
+  const todayHealth = healthMetrics.find(
+    (metric) => metric.metric_date === toLocalDateKey(new Date()),
+  );
+  const hydrationLiters = ((todayHealth?.hydration_ml ?? 0) / 1000).toFixed(1);
+  const sleepHours = Math.floor((todayHealth?.sleep_minutes ?? 0) / 60);
+  const sleepMinutes = (todayHealth?.sleep_minutes ?? 0) % 60;
 
   const agendaView = useMemo(() => {
     const now = new Date();
@@ -752,7 +763,9 @@ function WidgetBody({
         <div className={`${card} h-full`}>
           <Coffee className="h-5 w-5 text-[color:var(--amber)]" />
           <div className="mt-3">
-            <div className="text-2xl font-display font-semibold">2h 14m</div>
+            <div className="text-2xl font-display font-semibold">
+              {todayHealth?.focus_minutes ?? 0}m
+            </div>
             <div className="text-xs text-muted-foreground">Focus today</div>
           </div>
         </div>
@@ -762,8 +775,10 @@ function WidgetBody({
         <div className={`${card} h-full`}>
           <Moon className="h-5 w-5 text-[color:var(--violet)]" />
           <div className="mt-3">
-            <div className="text-2xl font-display font-semibold">7h 42m</div>
-            <div className="text-xs text-muted-foreground">Slept · 92% quality</div>
+            <div className="text-2xl font-display font-semibold">
+              {sleepHours}h {sleepMinutes}m
+            </div>
+            <div className="text-xs text-muted-foreground">Slept today</div>
           </div>
         </div>
       );
@@ -772,12 +787,16 @@ function WidgetBody({
         <div className={`${card} h-full`}>
           <Droplets className="h-5 w-5 text-[color:var(--cyan)]" />
           <div className="mt-3">
-            <div className="text-2xl font-display font-semibold">1.4 / 2.5L</div>
+            <div className="text-2xl font-display font-semibold">{hydrationLiters} / 2.5L</div>
             <div className="mt-2 flex gap-1">
               {Array.from({ length: 8 }).map((_, i) => (
                 <div
                   key={i}
-                  className={`h-1.5 flex-1 rounded-full ${i < 5 ? "bg-[color:var(--cyan)]" : "bg-white/10"}`}
+                  className={`h-1.5 flex-1 rounded-full ${
+                    i < Math.round(((todayHealth?.hydration_ml ?? 0) / 2500) * 8)
+                      ? "bg-[color:var(--cyan)]"
+                      : "bg-white/10"
+                  }`}
                 />
               ))}
             </div>
@@ -789,8 +808,12 @@ function WidgetBody({
         <div className={`${card} h-full`}>
           <Activity className="h-5 w-5 text-[color:var(--mint)]" />
           <div className="mt-3">
-            <div className="text-2xl font-display font-semibold">42 min</div>
-            <div className="text-xs text-muted-foreground">Yoga · 312 cal</div>
+            <div className="text-2xl font-display font-semibold">
+              {todayHealth?.workout_minutes ?? 0} min
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {todayHealth?.workout_calories ?? 0} cal
+            </div>
           </div>
         </div>
       );

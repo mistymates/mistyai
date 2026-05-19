@@ -120,6 +120,7 @@ function RootComponent() {
   return (
     <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || ""}>
       <QueryClientProvider client={queryClient}>
+        <RuntimeSettingsApplier />
         <TauriFullscreenHotkeys />
         <Outlet />
         <AssistantSidePanel />
@@ -129,6 +130,67 @@ function RootComponent() {
       </QueryClientProvider>
     </GoogleOAuthProvider>
   );
+}
+
+const accentHue: Record<string, string> = {
+  violet: "300",
+  cyan: "220",
+  rose: "10",
+  mint: "165",
+  amber: "80",
+};
+
+function RuntimeSettingsApplier() {
+  useEffect(() => {
+    let mounted = true;
+
+    const applySettings = (settings: { accent?: string; theme?: "dark" | "auto" | "light" }) => {
+      if (!mounted) return;
+      const root = document.documentElement;
+      const selectedAccent = settings.accent || "violet";
+      const hue = accentHue[selectedAccent] || accentHue.violet;
+      const theme = settings.theme || "dark";
+      const prefersLight = window.matchMedia("(prefers-color-scheme: light)").matches;
+      const effectiveTheme = theme === "auto" ? (prefersLight ? "light" : "dark") : theme;
+
+      root.dataset.theme = effectiveTheme;
+      root.dataset.accent = selectedAccent;
+      root.style.setProperty("--primary", `oklch(0.78 0.18 ${hue})`);
+      root.style.setProperty("--ring", `oklch(0.78 0.18 ${hue})`);
+      root.style.setProperty("--violet", `oklch(0.7 0.22 ${hue})`);
+    };
+
+    fetch("/api/settings")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((settings) => {
+        if (settings) applySettings(settings);
+      })
+      .catch((error) => console.warn("Appearance settings unavailable", error));
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== "misty-runtime-settings" || !event.newValue) return;
+      try {
+        applySettings(JSON.parse(event.newValue));
+      } catch {
+        // Ignore malformed cross-tab payloads.
+      }
+    };
+    const onLocalSettingsChanged = (event: Event) => {
+      applySettings(
+        (event as CustomEvent<{ accent?: string; theme?: "dark" | "auto" | "light" }>).detail,
+      );
+    };
+
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("misty-runtime-settings-changed", onLocalSettingsChanged);
+    return () => {
+      mounted = false;
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("misty-runtime-settings-changed", onLocalSettingsChanged);
+    };
+  }, []);
+
+  return null;
 }
 
 function TauriFullscreenHotkeys() {

@@ -73,6 +73,8 @@ export interface Reminder {
   title: string;
   message: string | null;
   scheduled_at: string;
+  snoozed_until: string | null;
+  snooze_reason: string | null;
   status: "pending" | "done" | "dismissed";
   created_at: string;
   updated_at: string;
@@ -108,6 +110,18 @@ export interface MemoryLink {
   relationship_type: string;
   strength: number;
   created_at: string;
+}
+
+export interface HealthMetric {
+  id: string;
+  metric_date: string;
+  hydration_ml: number;
+  sleep_minutes: number;
+  focus_minutes: number;
+  workout_minutes: number;
+  workout_calories: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface MemoryGraphResponse {

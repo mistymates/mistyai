@@ -99,7 +99,9 @@ async function createCodeChallenge(verifier: string) {
 
 function getStoredExpiresAt() {
   if (!isBrowser()) return null;
-  const raw = localStorage.getItem(SPOTIFY_TOKEN_EXPIRES_KEY);
+  const raw =
+    sessionStorage.getItem(SPOTIFY_TOKEN_EXPIRES_KEY) ||
+    localStorage.getItem(SPOTIFY_TOKEN_EXPIRES_KEY);
   if (!raw) return null;
   const parsed = Number(raw);
   return Number.isFinite(parsed) ? parsed : null;
@@ -107,7 +109,8 @@ function getStoredExpiresAt() {
 
 function storeTokenExpiry(expiresInSeconds: number) {
   const expiresAt = Date.now() + expiresInSeconds * 1000;
-  localStorage.setItem(SPOTIFY_TOKEN_EXPIRES_KEY, String(expiresAt));
+  sessionStorage.setItem(SPOTIFY_TOKEN_EXPIRES_KEY, String(expiresAt));
+  localStorage.removeItem(SPOTIFY_TOKEN_EXPIRES_KEY);
   return expiresAt;
 }
 
@@ -155,6 +158,9 @@ export class SpotifyAuth {
     localStorage.removeItem(SPOTIFY_ACCESS_TOKEN_KEY);
     localStorage.removeItem(SPOTIFY_REFRESH_TOKEN_KEY);
     localStorage.removeItem(SPOTIFY_TOKEN_EXPIRES_KEY);
+    sessionStorage.removeItem(SPOTIFY_ACCESS_TOKEN_KEY);
+    sessionStorage.removeItem(SPOTIFY_REFRESH_TOKEN_KEY);
+    sessionStorage.removeItem(SPOTIFY_TOKEN_EXPIRES_KEY);
     localStorage.removeItem(SPOTIFY_CODE_VERIFIER_KEY);
     localStorage.removeItem(SPOTIFY_AUTH_STATE_KEY);
     emitSpotifyAuthChanged();
@@ -165,9 +171,20 @@ export class SpotifyAuth {
       return { accessToken: null, refreshToken: null, expiresAt: null };
     }
 
+    const legacyAccessToken = localStorage.getItem(SPOTIFY_ACCESS_TOKEN_KEY);
+    const legacyRefreshToken = localStorage.getItem(SPOTIFY_REFRESH_TOKEN_KEY);
+    if (legacyAccessToken) {
+      sessionStorage.setItem(SPOTIFY_ACCESS_TOKEN_KEY, legacyAccessToken);
+      localStorage.removeItem(SPOTIFY_ACCESS_TOKEN_KEY);
+    }
+    if (legacyRefreshToken) {
+      sessionStorage.setItem(SPOTIFY_REFRESH_TOKEN_KEY, legacyRefreshToken);
+      localStorage.removeItem(SPOTIFY_REFRESH_TOKEN_KEY);
+    }
+
     return {
-      accessToken: localStorage.getItem(SPOTIFY_ACCESS_TOKEN_KEY),
-      refreshToken: localStorage.getItem(SPOTIFY_REFRESH_TOKEN_KEY),
+      accessToken: sessionStorage.getItem(SPOTIFY_ACCESS_TOKEN_KEY),
+      refreshToken: sessionStorage.getItem(SPOTIFY_REFRESH_TOKEN_KEY),
       expiresAt: getStoredExpiresAt(),
     };
   }
@@ -219,13 +236,15 @@ export class SpotifyAuth {
   static storeTokens(tokens: SpotifyTokens) {
     if (!isBrowser()) return;
 
-    const existingRefreshToken = localStorage.getItem(SPOTIFY_REFRESH_TOKEN_KEY);
-    localStorage.setItem(SPOTIFY_ACCESS_TOKEN_KEY, tokens.access_token);
+    const existingRefreshToken = sessionStorage.getItem(SPOTIFY_REFRESH_TOKEN_KEY);
+    sessionStorage.setItem(SPOTIFY_ACCESS_TOKEN_KEY, tokens.access_token);
 
     const refreshTokenToStore = tokens.refresh_token ?? existingRefreshToken;
     if (refreshTokenToStore) {
-      localStorage.setItem(SPOTIFY_REFRESH_TOKEN_KEY, refreshTokenToStore);
+      sessionStorage.setItem(SPOTIFY_REFRESH_TOKEN_KEY, refreshTokenToStore);
     }
+    localStorage.removeItem(SPOTIFY_ACCESS_TOKEN_KEY);
+    localStorage.removeItem(SPOTIFY_REFRESH_TOKEN_KEY);
 
     storeTokenExpiry(tokens.expires_in);
     emitSpotifyAuthChanged();

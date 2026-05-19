@@ -30,6 +30,7 @@ import { Route as ApiSettingsRouteImport } from './routes/api/settings'
 import { Route as ApiMemoryRouteImport } from './routes/api/memory'
 import { Route as ApiInsightsRouteImport } from './routes/api/insights'
 import { Route as ApiDataRouteImport } from './routes/api/data'
+import { Route as ApiConversationsRouteImport } from './routes/api/conversations'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiVoiceSessionRouteImport } from './routes/api/voice.session'
 import { Route as ApiVoiceDeepgramTokenRouteImport } from './routes/api/voice.deepgram-token'
@@ -142,6 +143,11 @@ const ApiDataRoute = ApiDataRouteImport.update({
   path: '/api/data',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiConversationsRoute = ApiConversationsRouteImport.update({
+  id: '/api/conversations',
+  path: '/api/conversations',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
@@ -178,6 +184,7 @@ export interface FileRoutesByFullPath {
   '/app': typeof AppRouteWithChildren
   '/callback': typeof CallbackRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/conversations': typeof ApiConversationsRoute
   '/api/data': typeof ApiDataRoute
   '/api/insights': typeof ApiInsightsRoute
   '/api/memory': typeof ApiMemoryRouteWithChildren
@@ -206,6 +213,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/callback': typeof CallbackRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/conversations': typeof ApiConversationsRoute
   '/api/data': typeof ApiDataRoute
   '/api/insights': typeof ApiInsightsRoute
   '/api/memory': typeof ApiMemoryRouteWithChildren
@@ -236,6 +244,7 @@ export interface FileRoutesById {
   '/app': typeof AppRouteWithChildren
   '/callback': typeof CallbackRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/conversations': typeof ApiConversationsRoute
   '/api/data': typeof ApiDataRoute
   '/api/insights': typeof ApiInsightsRoute
   '/api/memory': typeof ApiMemoryRouteWithChildren
@@ -267,6 +276,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/callback'
     | '/api/chat'
+    | '/api/conversations'
     | '/api/data'
     | '/api/insights'
     | '/api/memory'
@@ -295,6 +305,7 @@ export interface FileRouteTypes {
     | '/'
     | '/callback'
     | '/api/chat'
+    | '/api/conversations'
     | '/api/data'
     | '/api/insights'
     | '/api/memory'
@@ -324,6 +335,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/callback'
     | '/api/chat'
+    | '/api/conversations'
     | '/api/data'
     | '/api/insights'
     | '/api/memory'
@@ -354,6 +366,7 @@ export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   CallbackRoute: typeof CallbackRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiConversationsRoute: typeof ApiConversationsRoute
   ApiDataRoute: typeof ApiDataRoute
   ApiInsightsRoute: typeof ApiInsightsRoute
   ApiMemoryRoute: typeof ApiMemoryRouteWithChildren
@@ -515,6 +528,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDataRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/conversations': {
+      id: '/api/conversations'
+      path: '/api/conversations'
+      fullPath: '/api/conversations'
+      preLoaderRoute: typeof ApiConversationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/chat': {
       id: '/api/chat'
       path: '/api/chat'
@@ -609,6 +629,7 @@ const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   CallbackRoute: CallbackRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiConversationsRoute: ApiConversationsRoute,
   ApiDataRoute: ApiDataRoute,
   ApiInsightsRoute: ApiInsightsRoute,
   ApiMemoryRoute: ApiMemoryRouteWithChildren,

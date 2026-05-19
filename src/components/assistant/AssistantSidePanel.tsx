@@ -234,7 +234,9 @@ export function AssistantSidePanel() {
                   {suggestions.map((s) => (
                     <button
                       key={s}
-                      onClick={() => dispatchAssistantIntent({ type: "ask_with_prompt", prompt: s })}
+                      onClick={() =>
+                        dispatchAssistantIntent({ type: "ask_with_prompt", prompt: s })
+                      }
                       className="w-full text-left text-xs px-3 py-2 rounded-lg bg-white/[0.02] hover:bg-white/[0.07] border border-white/5 transition flex items-center justify-between group"
                     >
                       <span>{s}</span>

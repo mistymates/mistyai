@@ -15,7 +15,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/app/memory")({
-  head: () => ({ meta: [{ title: "Memory Vault — Mistski" }] }),
+  head: () => ({ meta: [{ title: "Memory Vault - Misty" }] }),
   component: MemoryPage,
 });
 

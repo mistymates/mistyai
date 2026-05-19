@@ -1,5 +1,15 @@
-import { useTasks, useAgenda, useNotes, useWeather, useHabits } from "./use-data";
-import type { Task, Note, Habit } from "@/lib/types/database";
+import {
+  useAgenda,
+  useDailyMemoryDigest,
+  useHabits,
+  useJournalEntries,
+  useNotes,
+  useProjects,
+  useReminders,
+  useTasks,
+  useWeather,
+} from "./use-data";
+import type { Habit, JournalEntry, Note, Project, Reminder, Task } from "@/lib/types/database";
 
 export function useAIContext() {
   const { data: tasks = [] } = useTasks();
@@ -7,6 +17,10 @@ export function useAIContext() {
   const { data: notes = [] } = useNotes();
   const { data: weather } = useWeather();
   const { data: habits = [] } = useHabits();
+  const { data: reminders = [] } = useReminders();
+  const { data: projects = [] } = useProjects();
+  const { data: journalEntries = [] } = useJournalEntries();
+  const { data: memoryDigest } = useDailyMemoryDigest();
 
   const buildContextString = () => {
     let context = "\n\n--- CURRENT USER CONTEXT ---\n";
@@ -48,8 +62,40 @@ export function useAIContext() {
         .join("\n")}\n`;
     }
 
+    const dueReminders = reminders
+      .filter((reminder: Reminder) => reminder.status === "pending")
+      .slice(0, 5);
+    if (dueReminders.length > 0) {
+      context += `\nPending Reminders:\n${dueReminders
+        .map(
+          (reminder) =>
+            `- ${reminder.title} at ${new Date(reminder.scheduled_at).toLocaleString()}`,
+        )
+        .join("\n")}\n`;
+    }
+
+    if (projects.length > 0) {
+      context += `\nProjects:\n${projects
+        .slice(0, 5)
+        .map((project: Project) => `- ${project.name}: ${project.progress}% complete`)
+        .join("\n")}\n`;
+    }
+
+    if (journalEntries.length > 0) {
+      context += `\nRecent Journal Signals:\n${journalEntries
+        .slice(0, 3)
+        .map(
+          (entry: JournalEntry) => `- ${entry.mood || "No mood"}: ${entry.content.slice(0, 120)}`,
+        )
+        .join("\n")}\n`;
+    }
+
+    if (memoryDigest) {
+      context += `\nMemory Digest: ${memoryDigest.totals.pending} pending, ${memoryDigest.totals.approved} approved today, ${memoryDigest.totals.rejected} rejected today.\n`;
+    }
+
     context += "---------------------------\n";
-    return context;
+    return context.length > 6000 ? `${context.slice(0, 6000)}\n[Context trimmed]\n` : context;
   };
 
   return { buildContextString };

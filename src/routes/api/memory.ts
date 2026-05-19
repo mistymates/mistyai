@@ -26,9 +26,7 @@ type MemoryLinkRow = {
 const memoryUpdateSchema = z.object({
   id: idParamSchema,
   content: z.string().trim().min(1).max(4000).optional(),
-  category: z
-    .enum(["Me", "People", "Preferences", "Goals", "Health", "Relationships"])
-    .optional(),
+  category: z.enum(["Me", "People", "Preferences", "Goals", "Health", "Relationships"]).optional(),
   importance: z.number().min(1).max(5).optional(),
 });
 
@@ -44,9 +42,7 @@ export const Route = createFileRoute("/api/memory")({
         const includeLinks = url.searchParams.get("includeLinks") === "true";
         const currentMemoryId = url.searchParams.get("currentMemoryId");
         const limitParam = Number.parseInt(url.searchParams.get("limit") ?? "12", 10);
-        const linkLimit = Number.isFinite(limitParam)
-          ? Math.min(Math.max(limitParam, 1), 100)
-          : 12;
+        const linkLimit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 100) : 12;
 
         let query = supabase
           .from("memories")
@@ -74,7 +70,9 @@ export const Route = createFileRoute("/api/memory")({
           .order("strength", { ascending: false });
 
         if (currentMemoryId) {
-          linksQuery = linksQuery.or(`source_id.eq.${currentMemoryId},target_id.eq.${currentMemoryId}`);
+          linksQuery = linksQuery.or(
+            `source_id.eq.${currentMemoryId},target_id.eq.${currentMemoryId}`,
+          );
         }
 
         const { data: linksData, error: linksError } = await linksQuery.limit(linkLimit);

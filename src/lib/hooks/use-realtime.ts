@@ -9,68 +9,39 @@ const clientId =
     ? crypto.randomUUID()
     : Math.random().toString(36).substring(2) + Date.now().toString(36);
 
+const realtimeInvalidations: Record<string, string[][]> = {
+  tasks: [["tasks"], ["calendar-items"], ["agenda"]],
+  notifications: [["notifications"]],
+  reminders: [["reminders"], ["notifications"]],
+  conversations: [["conversations"]],
+  conversation_messages: [["conversations"], ["conversation-messages"]],
+  dashboard_layouts: [["dashboard_layout"]],
+  memories: [["memories"], ["memory-graph"], ["daily_memory_digest"]],
+  memory_links: [["memory-graph"]],
+  notes: [["notes"]],
+  projects: [["projects"], ["tasks"]],
+  journal_entries: [["journal_entries"]],
+  calendar_events: [["calendar-items"], ["agenda"], ["calendar-events"]],
+  habits: [["habits"]],
+  transactions: [["transactions"]],
+  assistant_settings: [["assistant-settings"]],
+  health_metrics: [["health_metrics"]],
+};
+
 export const useRealtime = () => {
   const queryClient = useQueryClient();
   const { status, setStatus } = useAssistant();
 
   useEffect(() => {
-    const channel = supabase
-      .channel("misty-sync")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "tasks",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["tasks"] });
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "notifications",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["notifications"] });
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "conversations",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["conversations"] });
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "dashboard_layouts",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["dashboard_layout"] });
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "memories",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["memories"] });
-        },
-      )
+    let channel = supabase.channel("misty-sync");
+
+    Object.entries(realtimeInvalidations).forEach(([table, queryKeys]) => {
+      channel = channel.on("postgres_changes", { event: "*", schema: "public", table }, () => {
+        queryKeys.forEach((queryKey) => queryClient.invalidateQueries({ queryKey }));
+      });
+    });
+
+    channel
       .on("broadcast", { event: "assistant-status" }, ({ payload }) => {
         if (payload.clientId === clientId) return;
         if (payload.status && payload.status !== useAssistant.getState().status) {

@@ -33,6 +33,7 @@ export function useVoice(onFinal: (text: string) => void, options: VoiceOptions 
   const conversationLoopRef = useRef(false);
   const statusSinceRef = useRef<number>(Date.now());
   const lastStatusRef = useRef(useAssistant.getState().status);
+  const voiceSessionIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     onFinalRef.current = onFinal;
@@ -58,6 +59,15 @@ export function useVoice(onFinal: (text: string) => void, options: VoiceOptions 
     if (status === "listening" || status === "connecting") {
       useAssistant.getState().setStatus("idle");
     }
+    if (!keepLoop && voiceSessionIdRef.current) {
+      const sessionId = voiceSessionIdRef.current;
+      voiceSessionIdRef.current = null;
+      fetch("/api/voice/session", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, status: "cancelled" }),
+      }).catch((error) => console.warn("Failed to cancel voice session", error));
+    }
   }, []);
 
   const stopSpeaking = useCallback(() => stopSpeakingAudio(false), [stopSpeakingAudio]);
@@ -81,12 +91,31 @@ export function useVoice(onFinal: (text: string) => void, options: VoiceOptions 
       useAssistant.getState().setStatus("connecting");
       useAssistant.getState().setLiveTranscript("");
 
+      try {
+        const response = await fetch("/api/voice/session", { method: "POST" });
+        if (response.ok) {
+          const session = (await response.json()) as { id?: string };
+          voiceSessionIdRef.current = session.id || null;
+        }
+      } catch (error) {
+        console.warn("Failed to start persistent voice session", error);
+      }
+
       const transcriber = new DeepgramRealtimeTranscriber({
         onReady: () => useAssistant.getState().setStatus("listening"),
         onInterim: (text) => useAssistant.getState().setLiveTranscript(text),
         onSpeechStart: () => useAssistant.getState().setStatus("listening"),
         onSpeechEnd: () => useAssistant.getState().setStatus("thinking"),
         onFinal: (text) => {
+          const sessionId = voiceSessionIdRef.current;
+          if (sessionId) {
+            fetch("/api/voice/session", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ sessionId, status: "ended", transcript: text }),
+            }).catch((error) => console.warn("Failed to persist voice transcript", error));
+            voiceSessionIdRef.current = null;
+          }
           if (transcriberRef.current === transcriber) {
             transcriberRef.current = null;
           }
@@ -104,6 +133,17 @@ export function useVoice(onFinal: (text: string) => void, options: VoiceOptions 
           if (transcriberRef.current === transcriber) {
             transcriberRef.current = null;
           }
+          const sessionId = voiceSessionIdRef.current;
+          if (sessionId) {
+            fetch("/api/voice/session", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ sessionId, status: "error" }),
+            }).catch((persistError) =>
+              console.warn("Failed to mark voice session error", persistError),
+            );
+            voiceSessionIdRef.current = null;
+          }
           useAssistant.getState().setLiveTranscript("");
           useAssistant.getState().setStatus("idle");
         },
@@ -120,6 +160,17 @@ export function useVoice(onFinal: (text: string) => void, options: VoiceOptions 
         transcriber.stop();
         if (transcriberRef.current === transcriber) {
           transcriberRef.current = null;
+        }
+        const sessionId = voiceSessionIdRef.current;
+        if (sessionId) {
+          fetch("/api/voice/session", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessionId, status: "error" }),
+          }).catch((persistError) =>
+            console.warn("Failed to mark voice start error", persistError),
+          );
+          voiceSessionIdRef.current = null;
         }
         if (isMicPermissionError(error)) {
           useAssistant.getState().setMicPermission("denied");

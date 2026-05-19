@@ -28,6 +28,21 @@ export function saveThreads(threads: Thread[]) {
   window.dispatchEvent(new Event(THREADS_CHANGED_EVENT));
 }
 
+function persistThreadToBackend(thread: Thread) {
+  if (typeof window === "undefined") return;
+  window
+    .fetch("/api/conversations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: thread.id,
+        title: thread.title,
+        messages: thread.messages,
+      }),
+    })
+    .catch((error) => console.warn("Conversation backend persistence failed", error));
+}
+
 export function loadActiveThreadId() {
   if (typeof window === "undefined") return "";
   return localStorage.getItem(ACTIVE_KEY) ?? "";
@@ -65,12 +80,15 @@ export function updateThreadMessages(threadId: string, messages: UIMessage[]) {
 
   if (next.some((thread) => thread.id === threadId)) {
     saveThreads(next);
+    const updated = next.find((thread) => thread.id === threadId);
+    if (updated) persistThreadToBackend(updated);
     return next;
   }
 
   const created = { ...newThread(), id: threadId, messages, title: deriveTitle(messages) };
   const final = [created, ...next];
   saveThreads(final);
+  persistThreadToBackend(created);
   saveActiveThreadId(created.id);
   return final;
 }

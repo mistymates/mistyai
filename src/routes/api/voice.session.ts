@@ -39,7 +39,7 @@ export const Route = createFileRoute("/api/voice/session")({
       PATCH: async ({ request }: { request: Request }) => {
         const parsed = await parseJsonBody(request, voiceSessionPatchSchema);
         if (parsed.response) return parsed.response;
-        const { sessionId, status } = parsed.data;
+        const { sessionId, status, transcript } = parsed.data;
 
         const supabase = getSupabase();
         if (!supabase) return json({ success: true, mode: "local" });
@@ -50,6 +50,15 @@ export const Route = createFileRoute("/api/voice/session")({
           .eq("id", sessionId);
 
         if (error) return jsonError(error.message, 500);
+
+        if (transcript) {
+          const { error: transcriptError } = await supabase.from("transcripts").insert({
+            session_id: sessionId,
+            role: "user",
+            content: transcript,
+          });
+          if (transcriptError) return jsonError(transcriptError.message, 500);
+        }
 
         return json({ success: true });
       },

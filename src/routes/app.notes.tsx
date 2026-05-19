@@ -90,7 +90,12 @@ function NotesPage() {
   };
 
   const tags = useMemo(
-    () => ["all", ...Array.from(new Set(notes.map((note) => note.tag).filter((tag): tag is string => Boolean(tag))))],
+    () => [
+      "all",
+      ...Array.from(
+        new Set(notes.map((note) => note.tag).filter((tag): tag is string => Boolean(tag))),
+      ),
+    ],
     [notes],
   );
 
@@ -144,7 +149,10 @@ function NotesPage() {
           onSubmit={handleSaveNote}
         >
           <div className="space-y-2">
-            <label htmlFor="note-title" className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            <label
+              htmlFor="note-title"
+              className="text-xs font-medium text-muted-foreground uppercase tracking-wider"
+            >
               Title
             </label>
             <Input
@@ -156,7 +164,10 @@ function NotesPage() {
             />
           </div>
           <div className="space-y-2">
-            <label htmlFor="note-excerpt" className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            <label
+              htmlFor="note-excerpt"
+              className="text-xs font-medium text-muted-foreground uppercase tracking-wider"
+            >
               Excerpt
             </label>
             <Textarea
@@ -168,7 +179,10 @@ function NotesPage() {
             />
           </div>
           <div className="space-y-2">
-            <label htmlFor="note-tag" className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            <label
+              htmlFor="note-tag"
+              className="text-xs font-medium text-muted-foreground uppercase tracking-wider"
+            >
               Tag
             </label>
             <Input
@@ -270,7 +284,9 @@ function NotesPage() {
                 />
               </div>
             </div>
-            <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">{n.excerpt}</p>
+            <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">
+              {n.excerpt}
+            </p>
             <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
               {n.tag && <span className="px-2 py-0.5 rounded-full bg-white/5">#{n.tag}</span>}
               <span>{new Date(n.updated_at).toLocaleDateString()}</span>

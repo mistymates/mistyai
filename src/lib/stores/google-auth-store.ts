@@ -31,6 +31,7 @@ export const useGoogleAuthStore = create<GoogleAuthState>()(
     }),
     {
       name: "google-auth-storage",
+      partialize: (state) => ({ expiresAt: state.expiresAt }),
     },
   ),
 );

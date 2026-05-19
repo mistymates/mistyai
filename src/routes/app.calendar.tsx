@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
   Calendar as CalendarIcon,
@@ -28,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { onAssistantIntent } from "@/lib/assistant-intents";
+import { googleCalendarService } from "@/lib/services/google-calendar-service";
 
 export const Route = createFileRoute("/app/calendar")({
   head: () => ({ meta: [{ title: "Calendar — Misty" }] }),
@@ -132,7 +134,13 @@ function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
-  const [eventForm, setEventForm] = useState({ title: "", time: "", type: "event" });
+  const [eventForm, setEventForm] = useState({
+    title: "",
+    time: "",
+    type: "event",
+    target: "local" as "local" | "google",
+  });
+  const queryClient = useQueryClient();
   const token = useGoogleAuthStore((state) => state.token);
   const expiresAt = useGoogleAuthStore((state) => state.expiresAt);
   const setToken = useGoogleAuthStore((state) => state.setToken);
@@ -159,7 +167,7 @@ function CalendarPage() {
       toast.success("Google Calendar connected");
     },
     onError: () => toast.error("Failed to connect Google Calendar"),
-    scope: "https://www.googleapis.com/auth/calendar.readonly",
+    scope: "https://www.googleapis.com/auth/calendar",
   });
 
   const yearOptions = useMemo(() => {
@@ -191,12 +199,20 @@ function CalendarPage() {
       })
     : "Selected day";
 
-  const openCreateDialog = useCallback((dateKey: string) => {
-    setSelectedDate(dateKey);
-    setEditingEventId(null);
-    setEventForm({ title: "", time: "", type: "event" });
-    setIsDialogOpen(true);
-  }, []);
+  const openCreateDialog = useCallback(
+    (dateKey: string) => {
+      setSelectedDate(dateKey);
+      setEditingEventId(null);
+      setEventForm({
+        title: "",
+        time: "",
+        type: "event",
+        target: isGoogleConnected ? "google" : "local",
+      });
+      setIsDialogOpen(true);
+    },
+    [isGoogleConnected],
+  );
 
   useEffect(() => {
     return onAssistantIntent((intent) => {
@@ -209,7 +225,7 @@ function CalendarPage() {
     itemId.startsWith("local:") ? itemId.slice("local:".length) : itemId;
 
   const openEditDialog = (item: CalendarItem) => {
-    if (item.source !== "local") return;
+    if (item.source !== "local" && item.source !== "google") return;
     const start = new Date(item.start);
     const time =
       item.allDay || Number.isNaN(start.getTime())
@@ -217,7 +233,12 @@ function CalendarPage() {
         : `${String(start.getHours()).padStart(2, "0")}:${String(start.getMinutes()).padStart(2, "0")}`;
     setSelectedDate(item.dateKey || toDateKey(start) || todayKey);
     setEditingEventId(getLocalRowId(item.id));
-    setEventForm({ title: item.title, time, type: item.type || "event" });
+    setEventForm({
+      title: item.title,
+      time,
+      type: item.type || "event",
+      target: item.source === "google" ? "google" : "local",
+    });
     setIsDialogOpen(true);
   };
 
@@ -229,9 +250,26 @@ function CalendarPage() {
     const start = eventForm.time
       ? new Date(`${selectedDate}T${eventForm.time}:00`)
       : new Date(`${selectedDate}T00:00:00`);
+    const end = eventForm.time ? new Date(start.getTime() + 60 * 60 * 1000) : null;
 
     try {
-      if (editingEventId) {
+      if (eventForm.target === "google") {
+        if (!token) throw new Error("Google Calendar is not connected");
+        const googlePayload = {
+          summary: title,
+          start: eventForm.time ? { dateTime: start.toISOString() } : { date: selectedDate },
+          end: eventForm.time && end ? { dateTime: end.toISOString() } : { date: selectedDate },
+        };
+        if (editingEventId) {
+          await googleCalendarService.updateEvent(token, editingEventId, googlePayload);
+          toast.success("Google Calendar event updated");
+        } else {
+          await googleCalendarService.createEvent(token, googlePayload);
+          toast.success("Google Calendar event added");
+        }
+        queryClient.invalidateQueries({ queryKey: ["calendar-items"] });
+        queryClient.invalidateQueries({ queryKey: ["agenda"] });
+      } else if (editingEventId) {
         await updateCalendarEvent.mutateAsync({
           id: editingEventId,
           updates: {
@@ -249,20 +287,30 @@ function CalendarPage() {
           end_time: null,
           type: eventForm.type,
         });
-        toast.success("Calendar event added");
+        toast.success("Local calendar event added");
       }
       setIsDialogOpen(false);
       setEditingEventId(null);
-      setEventForm({ title: "", time: "", type: "event" });
+      setEventForm({ title: "", time: "", type: "event", target: "local" });
     } catch {
-      toast.error(editingEventId ? "Failed to update calendar event" : "Failed to add calendar event");
+      toast.error(
+        editingEventId ? "Failed to update calendar event" : "Failed to add calendar event",
+      );
     }
   };
 
   const handleDeleteCalendarEvent = async (item: CalendarItem) => {
     try {
-      await deleteCalendarEvent.mutateAsync(getLocalRowId(item.id));
-      toast.success("Calendar event deleted");
+      if (item.source === "google") {
+        if (!token) throw new Error("Google Calendar is not connected");
+        await googleCalendarService.deleteEvent(token, getLocalRowId(item.id));
+        queryClient.invalidateQueries({ queryKey: ["calendar-items"] });
+        queryClient.invalidateQueries({ queryKey: ["agenda"] });
+        toast.success("Google Calendar event deleted");
+      } else {
+        await deleteCalendarEvent.mutateAsync(getLocalRowId(item.id));
+        toast.success("Calendar event deleted");
+      }
     } catch {
       toast.error("Failed to delete calendar event");
     }
@@ -526,6 +574,27 @@ function CalendarPage() {
                 className="bg-white/5 border-white/10 focus-visible:ring-[color:var(--violet)]"
               />
             </div>
+            <div className="space-y-2">
+              <label
+                htmlFor="calendar-event-target"
+                className="text-xs font-medium text-muted-foreground uppercase tracking-wider"
+              >
+                Calendar
+              </label>
+              <DropdownSelect
+                id="calendar-event-target"
+                value={eventForm.target}
+                onChange={(target) =>
+                  setEventForm({ ...eventForm, target: target as "local" | "google" })
+                }
+                options={[
+                  { value: "local", label: "Misty local" },
+                  ...(isGoogleConnected ? [{ value: "google", label: "Google Calendar" }] : []),
+                ]}
+                ariaLabel="Select calendar target"
+                className="h-9 rounded-md focus-visible:ring-[color:var(--violet)]"
+              />
+            </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <label
@@ -650,7 +719,7 @@ function CalendarList({
               )}
             </div>
           </div>
-          {item.source === "local" && (
+          {(item.source === "local" || item.source === "google") && (
             <>
               {onEditLocalEvent && (
                 <button

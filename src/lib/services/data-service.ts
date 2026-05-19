@@ -11,6 +11,7 @@ import type {
   Memory,
   MemoryCategory,
   Reminder,
+  HealthMetric,
 } from "@/lib/types/database";
 import { memoryService } from "./memory-service";
 
@@ -182,6 +183,24 @@ export const dataService = {
 
   async getReminders() {
     return apiRequest<Reminder[]>(dataPath("reminders"));
+  },
+
+  async getHealthMetrics() {
+    return apiRequest<HealthMetric[]>(dataPath("health_metrics"));
+  },
+
+  async createHealthMetric(metric: Partial<HealthMetric>) {
+    return apiRequest<HealthMetric>(dataPath("health_metrics"), {
+      method: "POST",
+      body: JSON.stringify(metric),
+    });
+  },
+
+  async updateHealthMetric(id: string, updates: Partial<HealthMetric>) {
+    return apiRequest<HealthMetric>(dataPathWithId("health_metrics", id), {
+      method: "PATCH",
+      body: JSON.stringify(updates),
+    });
   },
 
   async createReminder(reminder: Partial<Reminder>) {

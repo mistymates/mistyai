@@ -10,6 +10,7 @@ import { defaultPersonality } from "@/lib/assistant-settings";
 import { jsonError, parseJsonBody } from "@/lib/api/http";
 import { chatRequestSchema } from "@/lib/api/schemas";
 import { logger } from "@/lib/logger";
+import { resolveGoogleModelId } from "@/lib/model-settings";
 
 const LOW_VALUE_MEMORY_MESSAGES = new Set([
   "ok",
@@ -260,8 +261,9 @@ type MatchedMemory = {
 
 async function extractMemory(text: string, google: GoogleProvider): Promise<ExtractedMemory> {
   try {
-    const modelName =
-      process.env.GEMINI_MODEL || process.env.VITE_GEMINI_MODEL || "gemini-3-flash-preview";
+    const modelName = resolveGoogleModelId(
+      process.env.GEMINI_MODEL || process.env.VITE_GEMINI_MODEL,
+    );
     const result = await generateObject({
       model: google(modelName),
       schema: extractedMemorySchema,
@@ -299,6 +301,26 @@ async function getSavedPersonalityPrompt() {
   }
 
   return data?.personality_prompt || defaultPersonality.prompt;
+}
+
+async function getSavedModelName() {
+  const envModel = process.env.GEMINI_MODEL || process.env.VITE_GEMINI_MODEL;
+  const supabase = createSupabaseAdminClient();
+  if (!supabase) return resolveGoogleModelId(envModel);
+
+  const { data, error } = await supabase
+    .from("assistant_settings")
+    .select("model")
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Failed to load assistant model:", error);
+    return resolveGoogleModelId(envModel);
+  }
+
+  return resolveGoogleModelId(data?.model ?? envModel);
 }
 
 export const Route = createFileRoute("/api/chat")({
@@ -397,8 +419,7 @@ export const Route = createFileRoute("/api/chat")({
           }
         }
 
-        const modelName =
-          process.env.GEMINI_MODEL || process.env.VITE_GEMINI_MODEL || "gemini-3-flash-preview";
+        const modelName = await getSavedModelName();
         logger.info(`[API/Chat] Using model: ${modelName}`);
 
         const googleProvider = google(modelName);

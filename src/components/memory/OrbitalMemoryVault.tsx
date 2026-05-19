@@ -398,22 +398,22 @@ export function OrbitalMemoryVault({
                           <p className="text-white/45">No semantic links for this domain yet.</p>
                         ) : (
                           item.relatedDomains.map((related) => (
-                          <Button
-                            key={related.id}
-                            variant="outline"
-                            size="sm"
-                            className="h-6 rounded-none border-white/20 bg-transparent px-2 py-0 text-xs text-white/80 transition-all hover:bg-white/10 hover:text-white"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              toggleItem(related.id);
-                            }}
-                          >
-                            {related.id}
-                            <span className="ml-1 text-[10px] text-white/55">
-                              {related.count}x • {Math.round(related.strength * 100)}%
-                            </span>
-                            <ArrowRight size={8} className="ml-1 text-white/60" />
-                          </Button>
+                            <Button
+                              key={related.id}
+                              variant="outline"
+                              size="sm"
+                              className="h-6 rounded-none border-white/20 bg-transparent px-2 py-0 text-xs text-white/80 transition-all hover:bg-white/10 hover:text-white"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                toggleItem(related.id);
+                              }}
+                            >
+                              {related.id}
+                              <span className="ml-1 text-[10px] text-white/55">
+                                {related.count}x • {Math.round(related.strength * 100)}%
+                              </span>
+                              <ArrowRight size={8} className="ml-1 text-white/60" />
+                            </Button>
                           ))
                         )}
                       </div>

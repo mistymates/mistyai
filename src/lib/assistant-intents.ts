@@ -7,7 +7,9 @@ export type AssistantIntent =
   | { type: "ask_with_prompt"; prompt: string };
 
 export function dispatchAssistantIntent(intent: AssistantIntent) {
-  window.dispatchEvent(new CustomEvent<AssistantIntent>(ASSISTANT_INTENT_EVENT, { detail: intent }));
+  window.dispatchEvent(
+    new CustomEvent<AssistantIntent>(ASSISTANT_INTENT_EVENT, { detail: intent }),
+  );
 }
 
 export function onAssistantIntent(handler: (intent: AssistantIntent) => void) {

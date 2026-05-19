@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getAuthenticatedUserId } from "@/lib/api/auth";
 import { json, jsonError, parseJsonBody } from "@/lib/api/http";
 import { dataWriteSchemas, idParamSchema } from "@/lib/api/schemas";
 
@@ -10,6 +11,7 @@ const tableConfig = {
   journal_entries: { orderBy: "created_at", ascending: false },
   calendar_events: { orderBy: "start_time", ascending: true },
   reminders: { orderBy: "scheduled_at", ascending: true },
+  health_metrics: { orderBy: "metric_date", ascending: false },
 } as const;
 
 type TableName = keyof typeof tableConfig;
@@ -32,6 +34,8 @@ export const Route = createFileRoute("/api/data")({
         if (!supabase) return jsonError("Supabase configuration missing", 500);
 
         const url = new URL(request.url);
+        const userId = await getAuthenticatedUserId(request);
+        if (!userId) return jsonError("Authentication required", 401);
         const table = getTable(url);
         if (!table) return jsonError("Unsupported table", 400);
 
@@ -39,6 +43,7 @@ export const Route = createFileRoute("/api/data")({
         let query = supabase
           .from(table)
           .select("*")
+          .eq("user_id", userId)
           .order(config.orderBy, { ascending: config.ascending });
 
         if (table === "calendar_events") {
@@ -58,6 +63,8 @@ export const Route = createFileRoute("/api/data")({
         if (!supabase) return jsonError("Supabase configuration missing", 500);
 
         const url = new URL(request.url);
+        const userId = await getAuthenticatedUserId(request);
+        if (!userId) return jsonError("Authentication required", 401);
         const table = getTable(url);
         if (!table) return jsonError("Unsupported table", 400);
 
@@ -65,7 +72,11 @@ export const Route = createFileRoute("/api/data")({
         if (parsed.response) return parsed.response;
 
         const body = parsed.data as Record<string, unknown>;
-        const { data, error } = await supabase.from(table).insert(body).select().single();
+        const { data, error } = await supabase
+          .from(table)
+          .insert({ ...body, user_id: userId })
+          .select()
+          .single();
 
         if (error) return jsonError(error.message, 500);
         return json(data);
@@ -75,6 +86,8 @@ export const Route = createFileRoute("/api/data")({
         if (!supabase) return jsonError("Supabase configuration missing", 500);
 
         const url = new URL(request.url);
+        const userId = await getAuthenticatedUserId(request);
+        if (!userId) return jsonError("Authentication required", 401);
         const table = getTable(url);
         const id = getId(url);
 
@@ -92,6 +105,7 @@ export const Route = createFileRoute("/api/data")({
           .from(table)
           .update(updates)
           .eq("id", id)
+          .eq("user_id", userId)
           .select()
           .single();
 
@@ -103,13 +117,21 @@ export const Route = createFileRoute("/api/data")({
         if (!supabase) return jsonError("Supabase configuration missing", 500);
 
         const url = new URL(request.url);
+        const userId = await getAuthenticatedUserId(request);
+        if (!userId) return jsonError("Authentication required", 401);
         const table = getTable(url);
         const id = getId(url);
 
         if (!table) return jsonError("Unsupported table", 400);
         if (id instanceof Response) return id;
 
-        const { data, error } = await supabase.from(table).delete().eq("id", id).select().single();
+        const { data, error } = await supabase
+          .from(table)
+          .delete()
+          .eq("id", id)
+          .eq("user_id", userId)
+          .select()
+          .single();
 
         if (error) return jsonError(error.message, 500);
         return json(data);

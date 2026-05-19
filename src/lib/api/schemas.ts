@@ -19,6 +19,9 @@ export const memoryDigestReviewSchema = z.object({
 });
 
 export const assistantSettingsPatchSchema = z.object({
+  displayName: z.string().trim().max(160).nullable().optional(),
+  email: z.string().trim().email().max(240).nullable().optional(),
+  timeZone: z.string().trim().max(128).nullable().optional(),
   voiceEnabled: z.boolean().optional(),
   preferredVoice: z.string().trim().min(1).max(128).optional(),
   personalityPrompt: z.string().trim().min(1).max(8000).optional(),
@@ -49,6 +52,7 @@ export const spotifyRefreshRequestSchema = z.object({
 export const voiceSessionPatchSchema = z.object({
   sessionId: idParamSchema,
   status: z.enum(["active", "ended", "error", "cancelled"]),
+  transcript: z.string().trim().max(12000).optional(),
 });
 
 const nullableText = z.string().trim().max(4000).nullable().optional();
@@ -91,6 +95,17 @@ export const dataWriteSchemas = {
     title: z.string().trim().min(1).max(240).optional(),
     message: nullableText,
     scheduled_at: dateTimeText.optional(),
+    snoozed_until: z.string().trim().max(128).nullable().optional(),
+    snooze_reason: z.string().trim().max(240).nullable().optional(),
     status: z.enum(["pending", "done", "dismissed"]).optional(),
+    updated_at: z.string().trim().max(128).optional(),
+  }),
+  health_metrics: z.object({
+    metric_date: z.string().trim().min(1).max(32).optional(),
+    hydration_ml: z.number().int().min(0).max(10000).optional(),
+    sleep_minutes: z.number().int().min(0).max(1440).optional(),
+    focus_minutes: z.number().int().min(0).max(1440).optional(),
+    workout_minutes: z.number().int().min(0).max(1440).optional(),
+    workout_calories: z.number().int().min(0).max(10000).optional(),
   }),
 } as const;

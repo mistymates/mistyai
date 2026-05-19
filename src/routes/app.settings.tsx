@@ -10,6 +10,8 @@ import {
   personalityOptions,
   type PersonalityId,
 } from "@/lib/assistant-settings";
+import { modelOptions } from "@/lib/model-settings";
+import { Input } from "@/components/ui/input";
 
 export const Route = createFileRoute("/app/settings")({
   head: () => ({ meta: [{ title: "Settings — Misty" }] }),
@@ -26,7 +28,7 @@ const sections = [
 ];
 
 const accents = ["violet", "cyan", "rose", "mint", "amber"];
-const models = ["Misty default", "OpenAI GPT-5", "Anthropic Claude", "Google Gemini"];
+const models = [...modelOptions];
 const voices = [
   { value: "aura-2-callista-en", label: "Callista (Deepgram)" },
   { value: "aura-2-amalthea-en", label: "Aurora (Deepgram)" },
@@ -37,6 +39,9 @@ const voices = [
 
 function SettingsPage() {
   const [active, setActive] = useState("profile");
+  const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState("");
+  const [timeZone, setTimeZone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [accent, setAccent] = useState("violet");
   const [model, setModel] = useState(models[0]);
   const [theme, setTheme] = useState<"dark" | "auto" | "light">("dark");
@@ -67,11 +72,14 @@ function SettingsPage() {
             : settings.personalityPrompt || loadedPersonality.prompt;
 
         setVoiceEnabled(settings.voiceEnabled);
+        setDisplayName(settings.displayName || "");
+        setEmail(settings.email || "");
+        setTimeZone(settings.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone);
         setPreferredVoice(loadedVoice);
         setPersonality(loadedPersonality.id, loadedPrompt);
         setAccent(settings.accent || "violet");
         setTheme(settings.theme || "dark");
-        setModel(settings.model || models[0]);
+        setModel(models.includes(settings.model) ? settings.model : models[0]);
         setDailySummaryEnabled(settings.dailySummaryEnabled ?? true);
         setQuietHoursEnabled(settings.quietHoursEnabled ?? true);
         setHabitRemindersEnabled(settings.habitRemindersEnabled ?? false);
@@ -97,6 +105,9 @@ function SettingsPage() {
   }, [setPersonality, setPreferredVoice, setVoiceEnabled]);
 
   const saveAssistantSettings = async (next: {
+    displayName?: string;
+    email?: string;
+    timeZone?: string;
     personalityId?: PersonalityId;
     personalityPrompt?: string;
     preferredVoice?: string;
@@ -113,6 +124,9 @@ function SettingsPage() {
 
     const body = {
       personalityPrompt: next.personalityPrompt ?? currentPersonality.prompt,
+      displayName: next.displayName ?? displayName,
+      email: next.email ?? email,
+      timeZone: next.timeZone ?? timeZone,
       preferredVoice: next.preferredVoice ?? preferredVoice,
       voiceEnabled: next.voiceEnabled ?? voiceEnabled,
       accent: next.accent ?? accent,
@@ -132,6 +146,13 @@ function SettingsPage() {
       });
 
       if (!response.ok) throw new Error(await response.text());
+      if (next.accent || next.theme) {
+        const runtimeSettings = { accent: next.accent ?? accent, theme: next.theme ?? theme };
+        window.localStorage.setItem("misty-runtime-settings", JSON.stringify(runtimeSettings));
+        window.dispatchEvent(
+          new CustomEvent("misty-runtime-settings-changed", { detail: runtimeSettings }),
+        );
+      }
     } catch (error) {
       console.error("Failed to save assistant settings", error);
     }
@@ -171,8 +192,18 @@ function SettingsPage() {
   };
 
   const selectModel = (nextModel: string) => {
-    setModel(nextModel);
-    saveAssistantSettings({ model: nextModel });
+    const supportedModel = models.includes(nextModel as (typeof models)[number])
+      ? (nextModel as (typeof models)[number])
+      : models[0];
+    setModel(supportedModel);
+    saveAssistantSettings({ model: supportedModel });
+  };
+
+  const saveProfileField = (field: "displayName" | "email" | "timeZone", value: string) => {
+    if (field === "displayName") setDisplayName(value);
+    if (field === "email") setEmail(value);
+    if (field === "timeZone") setTimeZone(value);
+    saveAssistantSettings({ [field]: value });
   };
 
   return (
@@ -211,19 +242,29 @@ function SettingsPage() {
           {active === "profile" && (
             <>
               <Field label="Name">
-                <div className="text-sm px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-foreground cursor-not-allowed opacity-80">
-                  Not set
-                </div>
+                <Input
+                  value={displayName}
+                  onChange={(event) => saveProfileField("displayName", event.target.value)}
+                  placeholder="What should Misty call you?"
+                  className="bg-white/5 border-white/10"
+                />
               </Field>
               <Field label="Email">
-                <div className="text-sm px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-foreground cursor-not-allowed opacity-80">
-                  Not set
-                </div>
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(event) => saveProfileField("email", event.target.value)}
+                  placeholder="you@example.com"
+                  className="bg-white/5 border-white/10"
+                />
               </Field>
               <Field label="Time zone">
-                <div className="text-sm px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-foreground cursor-not-allowed opacity-80">
-                  Not set
-                </div>
+                <Input
+                  value={timeZone}
+                  onChange={(event) => saveProfileField("timeZone", event.target.value)}
+                  placeholder="Asia/Jakarta"
+                  className="bg-white/5 border-white/10"
+                />
               </Field>
             </>
           )}

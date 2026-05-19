@@ -48,6 +48,10 @@ export const useReminders = () => {
   return useAuthedQuery(["reminders"], () => dataService.getReminders());
 };
 
+export const useHealthMetrics = () => {
+  return useAuthedQuery(["health_metrics"], () => dataService.getHealthMetrics());
+};
+
 export const useProjects = () => {
   return useAuthedQuery(["projects"], () => dataService.getProjects());
 };
